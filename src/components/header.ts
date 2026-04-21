@@ -1,7 +1,7 @@
 import type { AuthViewState, RouteName } from '../types/app';
 
 export function renderHeader(route: RouteName, pageCount: number, fieldCount: number, auth: AuthViewState) {
-  const routeLabel = route === 'login' ? 'Connexion' : route === 'admin' ? 'Administration' : 'Signature';
+  const routeLabel = route === 'login' ? 'Connexion' : route === 'admin' ? 'Administration' : route === 'access' ? 'Accès' : 'Signature';
   const authLabel = auth.isLoading
     ? 'Connexion...'
     : auth.isAuthenticated
@@ -39,8 +39,13 @@ export function renderHeader(route: RouteName, pageCount: number, fieldCount: nu
           <strong>Admin</strong>
           <small>Templates, publication S3 et autorisations</small>
         </a>
-        <a class="mode-card ${route === 'user' ? 'active' : ''}" href="/user" data-route-link="user">
+        <a class="mode-card ${route === 'access' ? 'active' : ''}" href="/access" data-route-link="access">
           <span class="mode-card-label">Page 3</span>
+          <strong>Accès</strong>
+          <small>Publication des droits et suivi des signataires</small>
+        </a>
+        <a class="mode-card ${route === 'user' ? 'active' : ''}" href="/user" data-route-link="user">
+          <span class="mode-card-label">Page 4</span>
           <strong>Signature</strong>
           <small>Documents à signer et export PDF</small>
         </a>

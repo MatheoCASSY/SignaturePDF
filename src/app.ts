@@ -28,6 +28,7 @@ import {
   grantRemoteAccess,
   loadRemoteTemplate,
   loadRemoteInbox,
+  loadRemoteUserDirectory,
   loadRemoteTemplates,
   saveRemoteTemplate,
 } from './core/remote';
@@ -68,6 +69,9 @@ const state: AppState = {
   remoteTemplates: [],
   remoteAccess: null,
   remoteInbox: [],
+  remoteUsers: [],
+  selectedAccessPrincipals: [],
+  userDirectoryQuery: '',
   selectedInboxTemplateId: '',
   adminAccessMaxUses: 1,
 };
@@ -242,6 +246,7 @@ function bindShellEvents() {
   const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
   const accessPrincipalsInput = document.querySelector<HTMLTextAreaElement>('#access-principals');
   const accessMaxUsesInput = document.querySelector<HTMLInputElement>('#access-max-uses');
+  const userDirectorySearchInput = document.querySelector<HTMLInputElement>('#user-directory-search');
 
   templateInput?.addEventListener('change', async () => {
     const file = templateInput.files?.[0];
@@ -253,7 +258,7 @@ function bindShellEvents() {
 
   basePdfInput?.addEventListener('change', async () => {
     const file = basePdfInput.files?.[0];
-    if (!file || state.route !== 'admin') return;
+    if (!file || (state.route !== 'admin' && state.route !== 'access')) return;
     const dataUrl = await readFileAsDataUrl(file);
     const nextTemplate = cloneDeep(state.template);
     nextTemplate.basePdf = dataUrl;
@@ -285,12 +290,18 @@ function bindShellEvents() {
   });
 
   accessPrincipalsInput?.addEventListener('input', () => {
-    // Stateless: only used when publishing/granting access.
+    state.selectedAccessPrincipals = parsePrincipals(accessPrincipalsInput.value);
+    syncRemotePanels();
   });
 
   accessMaxUsesInput?.addEventListener('input', () => {
     const parsed = Number(accessMaxUsesInput.value);
     state.adminAccessMaxUses = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
+  });
+
+  userDirectorySearchInput?.addEventListener('input', () => {
+    state.userDirectoryQuery = userDirectorySearchInput.value.trim();
+    syncRemotePanels();
   });
 
   const templateText = document.querySelector<HTMLTextAreaElement>('#template-json');
@@ -339,6 +350,11 @@ function syncAuthState() {
     history.replaceState({}, '', routePath(state.route));
   }
 
+  if (state.route === 'access' && !authView.isAdmin) {
+    state.route = 'user';
+    history.replaceState({}, '', routePath(state.route));
+  }
+
 }
 
 function ensureRoute() {
@@ -375,10 +391,10 @@ async function mountUi() {
 
   const commonOptions = {
     lang: state.lang,
-    ...(state.route === 'admin' ? DESIGNER_OPTIONS : FORM_OPTIONS),
+    ...(state.route === 'admin' || state.route === 'access' ? DESIGNER_OPTIONS : FORM_OPTIONS),
   };
 
-  if (state.route === 'admin') {
+  if (state.route === 'admin' || state.route === 'access') {
     const designer = new Designer({
       domContainer: mount,
       template: state.template,
@@ -437,7 +453,7 @@ async function mountUi() {
 }
 
 function getDesignerUi() {
-  if (state.route !== 'admin' || activeUiKind !== 'admin' || !activeUi) return null;
+  if ((state.route !== 'admin' && state.route !== 'access') || activeUiKind !== 'admin' || !activeUi) return null;
   return activeUi as DesignerLike;
 }
 
@@ -473,8 +489,8 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
   }
 
   if (action === 'save-local') {
-    persistAll();
-    pushNotice('Etat sauvegarde localement.', 'success');
+    saveWorkspaceFiles();
+    pushNotice('Fichiers exportes et etat sauvegarde localement.', 'success');
     return;
   }
 
@@ -485,6 +501,19 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
 
   if (action === 'refresh-inbox') {
     await refreshRemoteInbox();
+    return;
+  }
+
+  if (action === 'refresh-user-directory') {
+    await refreshUserDirectory();
+    return;
+  }
+
+  if (action === 'toggle-user-principal') {
+    const principal = (button?.dataset.principal || '').trim();
+    if (principal) {
+      toggleAccessPrincipal(principal);
+    }
     return;
   }
 
@@ -658,6 +687,14 @@ async function refreshRouteData() {
     await refreshRemoteTemplates(true);
   }
 
+  if (state.route === 'access') {
+    await refreshRemoteTemplates(true);
+    await refreshUserDirectory(true);
+    if (state.remoteTemplateId) {
+      await refreshRemoteAccessStatus(true);
+    }
+  }
+
   if (state.route === 'user') {
     await refreshRemoteInbox(true);
     if (state.remoteTemplateId) {
@@ -768,7 +805,7 @@ function applyInputs(value: unknown) {
 
 function applyJsonFromEditors() {
   try {
-    if (state.route === 'admin') {
+    if (state.route === 'admin' || state.route === 'access') {
       const parsedTemplate = JSON.parse(state.templateDraft) as Template;
       applyTemplate(parsedTemplate);
       return;
@@ -847,6 +884,27 @@ async function refreshRemoteInbox(silent = false) {
   }
 }
 
+async function refreshUserDirectory(silent = false) {
+  if (!state.authToken) {
+    state.remoteUsers = [];
+    syncRemotePanels();
+    return;
+  }
+
+  try {
+    const { users } = await loadRemoteUserDirectory(state.authToken, state.remoteTemplateId || undefined);
+    state.remoteUsers = users;
+    syncRemotePanels();
+    if (!silent) {
+      pushNotice(`${users.length} user(s) disponible(s) pour attribution.`, 'info');
+    }
+  } catch (error) {
+    if (!silent) {
+      pushNotice(`Impossible de charger la liste users: ${(error as Error).message}`, 'danger');
+    }
+  }
+}
+
 async function publishCurrentTemplate() {
   if (!state.authToken) {
     pushNotice('Ajoute un jeton Cognito admin avant de publier.', 'warning');
@@ -873,11 +931,26 @@ async function publishCurrentTemplate() {
 
     const principals = getAccessPrincipals();
     if (principals.length > 0) {
-      await Promise.allSettled(principals.map((principal) => grantRemoteAccess({ templateId: result.template.id, principal, maxUses: state.adminAccessMaxUses }, state.authToken)));
+      await Promise.allSettled(
+        principals.map((principal) => {
+          const user = state.remoteUsers.find((entry) => entry.principal === principal);
+          return grantRemoteAccess(
+            {
+              templateId: result.template.id,
+              principal,
+              label: user?.label || principal,
+              maxUses: state.adminAccessMaxUses,
+            },
+            state.authToken,
+          );
+        }),
+      );
     }
 
     await refreshRemoteTemplates();
     await refreshRemoteInbox();
+    await refreshUserDirectory(true);
+    await refreshRemoteAccessStatus(true);
     pushNotice(`Template publie: ${result.template.id}`, 'success');
   } catch (error) {
     pushNotice(`Publication impossible: ${(error as Error).message}`, 'danger');
@@ -913,6 +986,10 @@ function getRemoteTemplateIdValue() {
 
 function getAccessPrincipals() {
   const raw = document.querySelector<HTMLTextAreaElement>('#access-principals')?.value || '';
+  return parsePrincipals(raw);
+}
+
+function parsePrincipals(raw: string) {
   return Array.from(
     new Set(
       raw
@@ -923,11 +1000,26 @@ function getAccessPrincipals() {
   );
 }
 
+function toggleAccessPrincipal(principal: string) {
+  const exists = state.selectedAccessPrincipals.includes(principal);
+  state.selectedAccessPrincipals = exists
+    ? state.selectedAccessPrincipals.filter((value) => value !== principal)
+    : state.selectedAccessPrincipals.concat(principal);
+
+  const accessPrincipalsInput = document.querySelector<HTMLTextAreaElement>('#access-principals');
+  if (accessPrincipalsInput) {
+    accessPrincipalsInput.value = state.selectedAccessPrincipals.join('\n');
+  }
+  syncRemotePanels();
+}
+
 function syncAdminFields() {
   const authTokenInput = document.querySelector<HTMLInputElement>('#auth-token');
   const templateNameInput = document.querySelector<HTMLInputElement>('#template-name');
   const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
   const accessMaxUsesInput = document.querySelector<HTMLInputElement>('#access-max-uses');
+  const accessPrincipalsInput = document.querySelector<HTMLTextAreaElement>('#access-principals');
+  const userDirectorySearchInput = document.querySelector<HTMLInputElement>('#user-directory-search');
 
   if (authTokenInput && authTokenInput.value !== state.authToken) {
     authTokenInput.value = state.authToken;
@@ -943,6 +1035,17 @@ function syncAdminFields() {
 
   if (accessMaxUsesInput && Number(accessMaxUsesInput.value) !== state.adminAccessMaxUses) {
     accessMaxUsesInput.value = String(state.adminAccessMaxUses);
+  }
+
+  if (accessPrincipalsInput) {
+    const parsed = parsePrincipals(accessPrincipalsInput.value);
+    if (parsed.join('\n') !== state.selectedAccessPrincipals.join('\n')) {
+      state.selectedAccessPrincipals = parsed;
+    }
+  }
+
+  if (userDirectorySearchInput && userDirectorySearchInput.value !== state.userDirectoryQuery) {
+    userDirectorySearchInput.value = state.userDirectoryQuery;
   }
 }
 
@@ -979,6 +1082,48 @@ function syncRemotePanels() {
       : '<p class="notice-empty">Aucun document attribué pour le moment.</p>';
   }
 
+  const userDirectoryList = document.querySelector<HTMLDivElement>('#user-directory-list');
+  if (userDirectoryList) {
+    const filterValue = state.userDirectoryQuery.trim().toLowerCase();
+    const filteredUsers = !filterValue
+      ? state.remoteUsers
+      : state.remoteUsers.filter((user) => {
+          const haystack = [user.label, user.principal, user.email || '', user.username || '', user.sub || ''].join(' ').toLowerCase();
+          return haystack.includes(filterValue);
+        });
+
+    userDirectoryList.innerHTML = filteredUsers.length
+      ? filteredUsers
+          .map((user) => {
+            const selected = state.selectedAccessPrincipals.includes(user.principal);
+            const label = user.label || user.principal;
+            const granted = user.grantedCount > 0 ? `${user.grantedCount} attribution(s)` : 'Aucune attribution';
+            const cognitoStatus = user.userStatus ? user.userStatus.toLowerCase() : 'unknown';
+            const enabledStatus = user.enabled ? 'enabled' : 'disabled';
+            const identity = user.email || user.username || user.sub || user.principal;
+            return `
+              <button class="summary-row inbox-row ${selected ? 'active' : ''}" data-action="toggle-user-principal" data-principal="${escapeHtml(user.principal)}">
+                <strong>${escapeHtml(label)}</strong>
+                <span>${escapeHtml(identity)} · ${escapeHtml(enabledStatus)} · ${escapeHtml(cognitoStatus)} · ${escapeHtml(granted)}${user.hasTemplateAccess ? ' · déjà autorisé' : ''}</span>
+              </button>
+            `;
+          })
+          .join('')
+      : '<p class="notice-empty">Aucun user ne correspond à la recherche (ou pool Cognito inaccessible).</p>';
+
+    userDirectoryList.querySelectorAll<HTMLButtonElement>('[data-action="toggle-user-principal"]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await handleAction('toggle-user-principal', button);
+      });
+    });
+  }
+
+  remoteInboxList?.querySelectorAll<HTMLButtonElement>('[data-action="open-inbox-template"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await handleAction('open-inbox-template', button);
+    });
+  });
+
   const accessStatus = document.querySelector<HTMLDivElement>('#access-status');
   if (accessStatus) {
     if (!state.remoteAccess) {
@@ -995,6 +1140,27 @@ function syncRemotePanels() {
   }
 
   syncDocumentModal();
+}
+
+async function refreshRemoteAccessStatus(silent = false) {
+  if (!state.remoteTemplateId) {
+    state.remoteAccess = null;
+    syncRemotePanels();
+    return;
+  }
+
+  try {
+    const access = await checkRemoteAccess(state.remoteTemplateId, state.authToken || undefined);
+    state.remoteAccess = access;
+    syncRemotePanels();
+    if (!silent) {
+      pushNotice(`Etat d’accès rafraichi pour ${state.remoteTemplateId}.`, 'info');
+    }
+  } catch (error) {
+    if (!silent) {
+      pushNotice(`Impossible de verifier l'accès: ${(error as Error).message}`, 'danger');
+    }
+  }
 }
 
 function syncDocumentModal() {
@@ -1179,6 +1345,21 @@ function persistAll() {
   persistAuthToken(state.authToken);
   persistRemoteTemplateId(state.remoteTemplateId);
   persistTemplateName(state.templateName);
+}
+
+function saveWorkspaceFiles() {
+  persistAll();
+  downloadJson(state.template, 'template-pdfme.json');
+  downloadJson(state.inputs, 'inputs-pdfme.json');
+  downloadJson(
+    {
+      route: state.route,
+      templateName: state.templateName,
+      remoteTemplateId: state.remoteTemplateId,
+      savedAt: new Date().toISOString(),
+    },
+    'pdfme-studio-snapshot.json',
+  );
 }
 
 function markTodo(todoId: number, done: boolean) {

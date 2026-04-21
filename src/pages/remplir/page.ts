@@ -2,7 +2,7 @@ export function renderUserLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
-        <p class="eyebrow">Page 3</p>
+        <p class="eyebrow">Page 4</p>
         <h2>Documents à signer</h2>
         <p class="muted">Sélectionne un document attribué, renseigne les champs, signe puis exporte le PDF final.</p>
       </div>
@@ -49,10 +49,6 @@ export function renderUserLeft(progress: { done: number; total: number }) {
           <label class="field-stack">
             <span>ID du template publié</span>
             <input id="remote-template-id" type="text" placeholder="uuid du template publié" />
-          </label>
-          <label class="field-stack">
-            <span>Jeton Cognito</span>
-            <input id="auth-token" type="password" placeholder="Colle ici ton token Cognito" />
           </label>
           <div class="import-stack">
             <label class="file-button">

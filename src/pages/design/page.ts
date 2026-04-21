@@ -15,8 +15,6 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
-          <button class="action-button" data-action="publish-template">Publier Vercel</button>
-          <button class="action-button" data-action="refresh-remote">Actualiser</button>
           <button class="action-button" data-action="template-json">Template JSON</button>
           <button class="action-button" data-action="load-contract">Contrat</button>
           <button class="action-button" data-action="load-invoice">Facture</button>
@@ -27,25 +25,9 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Publication et accès</span>
+          <span>Base du document</span>
         </div>
         <div class="stack gap-md">
-          <label class="field-stack">
-            <span>Nom du template</span>
-            <input id="template-name" type="text" placeholder="Contrat signé par les clients" />
-          </label>
-          <label class="field-stack">
-            <span>Jeton Cognito</span>
-            <input id="auth-token" type="password" placeholder="Colle ici le token Cognito" />
-          </label>
-          <label class="field-stack">
-            <span>Nombre d’utilisations</span>
-            <input id="access-max-uses" type="number" min="1" step="1" value="1" />
-          </label>
-          <label class="field-stack">
-            <span>Accès à donner</span>
-            <textarea id="access-principals" placeholder="email1@domaine.fr\nuser-sub-123"></textarea>
-          </label>
           <div class="import-stack">
             <label class="file-button">
               Importer un template JSON
@@ -56,7 +38,7 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
               <input type="file" id="basepdf-file" accept="application/pdf" hidden />
             </label>
           </div>
-          <p class="card-note">Le PDF importé devient la base visuelle du template. La publication Vercel enregistre le template en base et prépare l’accès Cognito.</p>
+          <p class="card-note">Cette page reste centrée sur la structure du document. La publication et les accès sont gérés dans la page dédiée Accès.</p>
         </div>
       </div>
 

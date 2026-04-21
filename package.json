@@ -16,6 +16,7 @@
     "vercel:env:sync": "powershell -ExecutionPolicy Bypass -File ./scripts/vercel-env-sync.ps1"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1033.0",
     "@aws-sdk/client-s3": "^3.1033.0",
     "@pdfme/common": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",

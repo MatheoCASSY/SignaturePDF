@@ -28,6 +28,14 @@
         "arn:aws:s3:::pdfme-235500188147-eu-west-1-an/templates/*",
         "arn:aws:s3:::pdfme-235500188147-eu-west-1-an/access/*"
       ]
+    },
+    {
+      "Sid": "AllowCognitoPoolUsersRead",
+      "Effect": "Allow",
+      "Action": [
+        "cognito-idp:ListUsers"
+      ],
+      "Resource": "*"
     }
   ]
 }

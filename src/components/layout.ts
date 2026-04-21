@@ -1,5 +1,6 @@
 import { renderHeader } from './header';
 import { renderAdminLeft, renderAdminRight } from '../pages/design/page';
+import { renderAccessLeft, renderAccessRight } from '../pages/access/page';
 import { renderLoginPage } from '../pages/login/page';
 import { renderUserLeft, renderUserRight } from '../pages/remplir/page';
 import type { AuthViewState, RouteName } from '../types/app';
@@ -26,14 +27,31 @@ export function renderAppShell(props: LayoutProps) {
     `;
   }
 
-  const stageTitle = props.route === 'admin' ? 'Administrer les templates' : 'Remplir et signer le document';
+  const stageTitle =
+    props.route === 'admin'
+      ? 'Administrer les templates'
+      : props.route === 'access'
+        ? 'Gérer les accès et signatures'
+        : 'Remplir et signer le document';
   const stageDescription =
     props.route === 'admin'
-      ? 'Construis le template, publie-le dans S3 et prépare les droits de signature.'
-      : 'Sélectionne un document autorisé, complète les champs puis exporte le PDF final.';
+      ? 'Construis le template et garde l’éditeur centré sur le contenu du document.'
+      : props.route === 'access'
+        ? 'Publie le template, distribue les accès et vérifie les droits de signature.'
+        : 'Sélectionne un document autorisé, complète les champs puis exporte le PDF final.';
 
-  const leftSidebar = props.route === 'admin' ? renderAdminLeft(props.progress) : renderUserLeft(props.progress);
-  const rightSidebar = props.route === 'admin' ? renderAdminRight() : renderUserRight();
+  const leftSidebar =
+    props.route === 'admin'
+      ? renderAdminLeft(props.progress)
+      : props.route === 'access'
+        ? renderAccessLeft(props.progress)
+        : renderUserLeft(props.progress);
+  const rightSidebar =
+    props.route === 'admin'
+      ? renderAdminRight()
+      : props.route === 'access'
+        ? renderAccessRight()
+        : renderUserRight();
 
   return `
     <div class="app-shell">
@@ -42,7 +60,7 @@ export function renderAppShell(props: LayoutProps) {
 
       ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
 
-      <main class="workspace ${props.route === 'admin' ? 'workspace-admin' : 'workspace-user'}">
+      <main class="workspace ${props.route === 'user' ? 'workspace-user' : 'workspace-admin'}">
         <aside class="panel sidebar left-sidebar">${leftSidebar}</aside>
 
         <section class="panel stage-panel">

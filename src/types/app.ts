@@ -1,6 +1,6 @@
 import type { Template } from '@pdfme/common';
 
-export type RouteName = 'login' | 'admin' | 'user';
+export type RouteName = 'login' | 'admin' | 'access' | 'user';
 
 export type NoticeTone = 'info' | 'success' | 'warning' | 'danger';
 
@@ -34,6 +34,19 @@ export type RemoteAccessStatus = {
     usedCount: number;
   } | null;
   template?: RemoteTemplateSummary;
+};
+
+export type RemoteUserDirectoryEntry = {
+  principal: string;
+  label: string;
+  email: string | null;
+  username: string | null;
+  sub: string | null;
+  enabled: boolean;
+  userStatus: string | null;
+  grantedCount: number;
+  lastGrantedAt: string | null;
+  hasTemplateAccess: boolean;
 };
 
 export type RemoteInboxDocument = {
@@ -91,6 +104,9 @@ export type AppState = {
   remoteTemplates: RemoteTemplateSummary[];
   remoteAccess: RemoteAccessStatus | null;
   remoteInbox: RemoteInboxDocument[];
+  remoteUsers: RemoteUserDirectoryEntry[];
+  selectedAccessPrincipals: string[];
+  userDirectoryQuery: string;
   selectedInboxTemplateId: string;
   adminAccessMaxUses: number;
 };

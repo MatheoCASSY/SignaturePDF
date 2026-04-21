@@ -37,6 +37,13 @@ export type RemoteAccessRecord = {
   usedCount: number;
 };
 
+export type RemoteUserDirectoryRecord = {
+  principal: string;
+  label: string;
+  grantedCount: number;
+  lastGrantedAt: string | null;
+};
+
 let jwksCache: ReturnType<typeof createRemoteJWKSet> | null = null;
 let s3Client: S3Client | null = null;
 
@@ -87,6 +94,10 @@ export function accessObjectKey(templateId: string, principal: string) {
   return `access/${encodeURIComponent(templateId)}/${encodeURIComponent(principal)}.json`;
 }
 
+export function accessDirectoryKey() {
+  return 'access/users-index.json';
+}
+
 export function normalizeTemplateSummary(record: RemoteTemplateRecord): RemoteTemplateSummary {
   return {
     id: record.id,
@@ -111,6 +122,20 @@ export function normalizeAccessRecord(record: Partial<RemoteAccessRecord> & { te
     maxUses,
     usedCount,
   } satisfies RemoteAccessRecord;
+}
+
+export function normalizeUserDirectoryRecord(record: Partial<RemoteUserDirectoryRecord> & { principal: string }) {
+  const principal = String(record.principal || '').trim();
+  const label = String(record.label || principal).trim() || principal;
+  const grantedCount = Number.isFinite(Number(record.grantedCount)) && Number(record.grantedCount) > 0 ? Math.floor(Number(record.grantedCount)) : 0;
+  const lastGrantedAt = record.lastGrantedAt ? String(record.lastGrantedAt) : null;
+
+  return {
+    principal,
+    label,
+    grantedCount,
+    lastGrantedAt,
+  } satisfies RemoteUserDirectoryRecord;
 }
 
 export function isAccessActive(record: RemoteAccessRecord | null | undefined) {

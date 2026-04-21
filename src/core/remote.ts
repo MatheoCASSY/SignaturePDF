@@ -47,6 +47,19 @@ export type RemoteAccessCheck = {
   isAdmin?: boolean;
 };
 
+export type RemoteUserDirectoryEntry = {
+  principal: string;
+  label: string;
+  email: string | null;
+  username: string | null;
+  sub: string | null;
+  enabled: boolean;
+  userStatus: string | null;
+  grantedCount: number;
+  lastGrantedAt: string | null;
+  hasTemplateAccess: boolean;
+};
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {
@@ -97,6 +110,7 @@ export function saveRemoteTemplate(payload: {
 export function grantRemoteAccess(payload: {
   templateId: string;
   principal: string;
+  label?: string;
   expiresAt?: string | null;
   maxUses?: number;
 }, token: string) {
@@ -124,5 +138,16 @@ export function consumeRemoteAccess(templateId: string, token: string) {
 export function loadRemoteInbox(token?: string) {
   return requestJson<{ documents: RemoteInboxDocument[]; principal: string | null; isAdmin: boolean }>('/api/access', {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+}
+
+export function loadRemoteUserDirectory(token: string, templateId?: string) {
+  const query = new URLSearchParams({ mode: 'pool-users' });
+  if (templateId) {
+    query.set('templateId', templateId);
+  }
+
+  return requestJson<{ users: RemoteUserDirectoryEntry[] }>(`/api/access?${query.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 }

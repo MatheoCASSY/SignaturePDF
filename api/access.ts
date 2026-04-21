@@ -1,4 +1,5 @@
 import {
+  accessDirectoryKey,
   accessObjectKey,
   ensureStorageReady,
   getPrincipal,
@@ -6,6 +7,7 @@ import {
   json,
   normalizeTemplateSummary,
   normalizeAccessRecord,
+  normalizeUserDirectoryRecord,
   principalCandidates,
   principalKey,
   readJsonBody,
@@ -15,7 +17,9 @@ import {
   writeJsonObject,
   type RemoteAccessRecord,
   type RemoteTemplateRecord,
+  type RemoteUserDirectoryRecord,
 } from './_shared';
+import { CognitoIdentityProviderClient, ListUsersCommand, type UserType } from '@aws-sdk/client-cognito-identity-provider';
 
 function toAccessRecord(row: RemoteAccessRecord) {
   return {
@@ -34,6 +38,62 @@ type TemplateIndex = {
   templates: Array<ReturnType<typeof normalizeTemplateSummary>>;
 };
 
+type UserDirectoryIndex = {
+  users: RemoteUserDirectoryRecord[];
+};
+
+let cognitoClient: CognitoIdentityProviderClient | null = null;
+
+function getCognitoRegion() {
+  return process.env.COGNITO_REGION || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || '';
+}
+
+function getCognitoUserPoolId() {
+  return process.env.COGNITO_USER_POOL_ID || '';
+}
+
+function getCognitoClient() {
+  if (!cognitoClient) {
+    const region = getCognitoRegion();
+    if (!region) {
+      throw new Error('Cognito non configuré: COGNITO_REGION ou AWS_REGION requis');
+    }
+    cognitoClient = new CognitoIdentityProviderClient({ region });
+  }
+  return cognitoClient;
+}
+
+function userAttribute(user: UserType, name: string) {
+  return user.Attributes?.find((attribute) => attribute.Name === name)?.Value || '';
+}
+
+async function loadPoolUsers(limit = 80) {
+  const userPoolId = getCognitoUserPoolId();
+  if (!userPoolId) {
+    throw new Error('Cognito non configuré: COGNITO_USER_POOL_ID requis');
+  }
+
+  const users: UserType[] = [];
+  let paginationToken: string | undefined;
+
+  while (users.length < limit) {
+    const pageSize = Math.min(60, limit - users.length);
+    const response = await getCognitoClient().send(
+      new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Limit: pageSize,
+        PaginationToken: paginationToken,
+      }),
+    );
+
+    users.push(...(response.Users || []));
+    paginationToken = response.PaginationToken;
+    if (!paginationToken) break;
+  }
+
+  return users;
+}
+
 async function loadTemplate(templateId: string) {
   return readJsonObject<RemoteTemplateRecord | null>(templateObjectKey(templateId), null);
 }
@@ -44,6 +104,23 @@ async function loadAccess(templateId: string, principal: string) {
 
 async function loadIndex() {
   return readJsonObject<TemplateIndex>(templateIndexKey(), { templates: [] });
+}
+
+async function loadUserDirectory() {
+  return readJsonObject<UserDirectoryIndex>(accessDirectoryKey(), { users: [] });
+}
+
+async function saveUserDirectory(users: RemoteUserDirectoryRecord[]) {
+  const normalized = users
+    .map((user) => normalizeUserDirectoryRecord(user))
+    .filter((user) => user.principal)
+    .sort((left, right) => {
+      const leftValue = (left.label || left.principal).toLowerCase();
+      const rightValue = (right.label || right.principal).toLowerCase();
+      return leftValue.localeCompare(rightValue);
+    });
+
+  await writeJsonObject(accessDirectoryKey(), { users: normalized });
 }
 
 async function loadFirstAccess(templateId: string, principal: { sub: string; email: string }) {
@@ -69,6 +146,122 @@ export default async function handler(req: any, res: any) {
 
     if (req.method === 'GET') {
       const templateId = url.searchParams.get('templateId');
+      const mode = url.searchParams.get('mode');
+
+      if (mode === 'directory') {
+        if (!principal?.isAdmin) {
+          json(res, 401, { error: 'Accès admin requis' });
+          return;
+        }
+
+        const directory = await loadUserDirectory();
+        const users = await Promise.all(
+          directory.users.map(async (entry) => {
+            const normalized = normalizeUserDirectoryRecord(entry);
+            const templateAccess = templateId ? await loadAccess(templateId, normalized.principal) : null;
+            const hasTemplateAccess = Boolean(templateAccess && isAccessActive(normalizeAccessRecord(templateAccess)));
+
+            return {
+              principal: normalized.principal,
+              label: normalized.label,
+              grantedCount: normalized.grantedCount,
+              lastGrantedAt: normalized.lastGrantedAt,
+              hasTemplateAccess,
+            };
+          }),
+        );
+
+        json(res, 200, { users });
+        return;
+      }
+
+      if (mode === 'pool-users') {
+        if (!principal?.isAdmin) {
+          json(res, 401, { error: 'Accès admin requis' });
+          return;
+        }
+
+        const [poolUsers, directory] = await Promise.all([loadPoolUsers(), loadUserDirectory()]);
+        const directoryMap = new Map(directory.users.map((entry) => [entry.principal, normalizeUserDirectoryRecord(entry)]));
+
+        const users = await Promise.all(
+          poolUsers.map(async (user) => {
+            const sub = userAttribute(user, 'sub').trim();
+            const email = userAttribute(user, 'email').trim();
+            const username = String(user.Username || '').trim();
+            const principalValue = sub || email || username;
+            if (!principalValue) return null;
+
+            const lookupCandidates = Array.from(new Set([principalValue, sub, email, username].filter(Boolean)));
+            const directoryEntry = lookupCandidates.map((candidate) => directoryMap.get(candidate)).find(Boolean) || null;
+
+            let hasTemplateAccess = false;
+            if (templateId) {
+              for (const candidate of lookupCandidates) {
+                const candidateAccess = await loadAccess(templateId, candidate);
+                if (candidateAccess && isAccessActive(normalizeAccessRecord(candidateAccess))) {
+                  hasTemplateAccess = true;
+                  break;
+                }
+              }
+            }
+
+            const label = email || username || principalValue;
+            return {
+              principal: principalValue,
+              label,
+              email: email || null,
+              username: username || null,
+              sub: sub || null,
+              enabled: user.Enabled !== false,
+              userStatus: user.UserStatus ? String(user.UserStatus) : null,
+              grantedCount: directoryEntry?.grantedCount || 0,
+              lastGrantedAt: directoryEntry?.lastGrantedAt || null,
+              hasTemplateAccess,
+            };
+          }),
+        );
+
+        const merged = users.filter(Boolean) as Array<{
+          principal: string;
+          label: string;
+          email: string | null;
+          username: string | null;
+          sub: string | null;
+          enabled: boolean;
+          userStatus: string | null;
+          grantedCount: number;
+          lastGrantedAt: string | null;
+          hasTemplateAccess: boolean;
+        }>;
+
+        for (const entry of directory.users) {
+          const normalized = normalizeUserDirectoryRecord(entry);
+          if (!normalized.principal) continue;
+          if (merged.some((user) => user.principal === normalized.principal)) continue;
+
+          const templateAccess = templateId ? await loadAccess(templateId, normalized.principal) : null;
+          const hasTemplateAccess = Boolean(templateAccess && isAccessActive(normalizeAccessRecord(templateAccess)));
+          merged.push({
+            principal: normalized.principal,
+            label: normalized.label,
+            email: null,
+            username: null,
+            sub: null,
+            enabled: true,
+            userStatus: null,
+            grantedCount: normalized.grantedCount,
+            lastGrantedAt: normalized.lastGrantedAt,
+            hasTemplateAccess,
+          });
+        }
+
+        merged.sort((left, right) => left.label.toLowerCase().localeCompare(right.label.toLowerCase()));
+
+        json(res, 200, { users: merged });
+        return;
+      }
+
       if (!templateId) {
         if (!principal) {
           json(res, 200, { documents: [], principal: null, isAdmin: false });
@@ -151,6 +344,7 @@ export default async function handler(req: any, res: any) {
       const body = await readJsonBody(req);
       const templateId = String(body.templateId || '').trim();
       const targetPrincipal = String(body.principal || '').trim();
+      const targetLabel = String(body.label || targetPrincipal).trim() || targetPrincipal;
       if (!templateId || !targetPrincipal) {
         json(res, 400, { error: 'templateId et principal requis' });
         return;
@@ -178,6 +372,17 @@ export default async function handler(req: any, res: any) {
       };
 
       await writeJsonObject(accessObjectKey(templateId, targetPrincipal), record);
+
+      const directory = await loadUserDirectory();
+      const existing = directory.users.find((entry) => entry.principal === targetPrincipal);
+      const next: RemoteUserDirectoryRecord = normalizeUserDirectoryRecord({
+        principal: targetPrincipal,
+        label: targetLabel || existing?.label || targetPrincipal,
+        grantedCount: (existing?.grantedCount || 0) + 1,
+        lastGrantedAt: now,
+      });
+      const nextUsers = directory.users.filter((entry) => entry.principal !== targetPrincipal).concat(next);
+      await saveUserDirectory(nextUsers);
 
       json(res, 200, { access: toAccessRecord(record) });
       return;
