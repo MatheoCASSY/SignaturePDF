@@ -1,6 +1,7 @@
 import { renderHeader } from './header';
-import { renderDesignLeft, renderDesignRight } from '../pages/design/page';
-import { renderRemplirLeft, renderRemplirRight } from '../pages/remplir/page';
+import { renderAdminLeft, renderAdminRight } from '../pages/design/page';
+import { renderLoginPage } from '../pages/login/page';
+import { renderUserLeft, renderUserRight } from '../pages/remplir/page';
 import type { AuthViewState, RouteName } from '../types/app';
 
 type LayoutProps = {
@@ -12,14 +13,27 @@ type LayoutProps = {
 };
 
 export function renderAppShell(props: LayoutProps) {
-  const stageTitle = props.route === 'design' ? 'Designer le template' : 'Remplir le document';
-  const stageDescription =
-    props.route === 'design'
-      ? 'Ajoute, deplace et configure les champs dans le canvas pdfme.'
-      : 'Renseigne les champs du formulaire puis exporte le PDF final.';
+  if (props.route === 'login') {
+    return `
+      <div class="app-shell login-shell">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
 
-  const leftSidebar = props.route === 'design' ? renderDesignLeft(props.progress) : renderRemplirLeft(props.progress);
-  const rightSidebar = props.route === 'design' ? renderDesignRight() : renderRemplirRight();
+        ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
+
+        ${renderLoginPage(props.auth)}
+      </div>
+    `;
+  }
+
+  const stageTitle = props.route === 'admin' ? 'Administrer les templates' : 'Remplir et signer le document';
+  const stageDescription =
+    props.route === 'admin'
+      ? 'Construis le template, publie-le dans S3 et prépare les droits de signature.'
+      : 'Sélectionne un document autorisé, complète les champs puis exporte le PDF final.';
+
+  const leftSidebar = props.route === 'admin' ? renderAdminLeft(props.progress) : renderUserLeft(props.progress);
+  const rightSidebar = props.route === 'admin' ? renderAdminRight() : renderUserRight();
 
   return `
     <div class="app-shell">
@@ -28,7 +42,7 @@ export function renderAppShell(props: LayoutProps) {
 
       ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
 
-      <main class="workspace ${props.route === 'design' ? 'workspace-design' : 'workspace-fill'}">
+      <main class="workspace ${props.route === 'admin' ? 'workspace-admin' : 'workspace-user'}">
         <aside class="panel sidebar left-sidebar">${leftSidebar}</aside>
 
         <section class="panel stage-panel">

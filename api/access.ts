@@ -2,12 +2,15 @@ import {
   accessObjectKey,
   ensureStorageReady,
   getPrincipal,
+  isAccessActive,
   json,
   normalizeTemplateSummary,
+  normalizeAccessRecord,
   principalCandidates,
   principalKey,
   readJsonBody,
   readJsonObject,
+  templateIndexKey,
   templateObjectKey,
   writeJsonObject,
   type RemoteAccessRecord,
@@ -21,8 +24,15 @@ function toAccessRecord(row: RemoteAccessRecord) {
     grantedAt: row.grantedAt,
     consumedAt: row.consumedAt,
     expiresAt: row.expiresAt,
+    grantedBy: row.grantedBy,
+    maxUses: row.maxUses,
+    usedCount: row.usedCount,
   };
 }
+
+type TemplateIndex = {
+  templates: Array<ReturnType<typeof normalizeTemplateSummary>>;
+};
 
 async function loadTemplate(templateId: string) {
   return readJsonObject<RemoteTemplateRecord | null>(templateObjectKey(templateId), null);
@@ -30,6 +40,10 @@ async function loadTemplate(templateId: string) {
 
 async function loadAccess(templateId: string, principal: string) {
   return readJsonObject<RemoteAccessRecord | null>(accessObjectKey(templateId, principal), null);
+}
+
+async function loadIndex() {
+  return readJsonObject<TemplateIndex>(templateIndexKey(), { templates: [] });
 }
 
 async function loadFirstAccess(templateId: string, principal: { sub: string; email: string }) {
@@ -56,7 +70,37 @@ export default async function handler(req: any, res: any) {
     if (req.method === 'GET') {
       const templateId = url.searchParams.get('templateId');
       if (!templateId) {
-        json(res, 400, { error: 'templateId requis' });
+        if (!principal) {
+          json(res, 200, { documents: [], principal: null, isAdmin: false });
+          return;
+        }
+
+        const index = await loadIndex();
+        const documents = await Promise.all(
+          index.templates.map(async (template) => {
+            const foundAccess = principal.isAdmin ? null : await loadFirstAccess(template.id, principal);
+            const accessRow = foundAccess?.access || null;
+            const access = accessRow ? toAccessRecord(normalizeAccessRecord(accessRow)) : null;
+            const allowed = principal.isAdmin || isAccessActive(access);
+
+            if (!access || !allowed) {
+              return null;
+            }
+
+            return {
+              template,
+              access,
+              allowed,
+              isAdmin: principal.isAdmin,
+            };
+          }),
+        );
+
+        json(res, 200, {
+          documents: documents.filter(Boolean),
+          principal: principalKey(principal),
+          isAdmin: principal.isAdmin,
+        });
         return;
       }
 
@@ -112,6 +156,8 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
+      const maxUses = Number.isFinite(Number(body.maxUses)) ? Math.max(1, Math.floor(Number(body.maxUses))) : 1;
+
       const expiresAt = body.expiresAt ? new Date(String(body.expiresAt)) : null;
       const template = await loadTemplate(templateId);
       if (!template) {
@@ -127,6 +173,8 @@ export default async function handler(req: any, res: any) {
         consumedAt: null,
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
         grantedBy: principal.sub || null,
+        maxUses,
+        usedCount: 0,
       };
 
       await writeJsonObject(accessObjectKey(templateId, targetPrincipal), record);
@@ -150,7 +198,7 @@ export default async function handler(req: any, res: any) {
 
       const key = principalKey(principal);
       const foundAccess = await loadFirstAccess(templateId, principal);
-      const existing = foundAccess?.access || null;
+      const existing = foundAccess?.access ? normalizeAccessRecord(foundAccess.access) : null;
       const accessKey = foundAccess?.key || key;
       if (!existing) {
         json(res, 403, { error: 'Aucun accès trouvé' });
@@ -164,7 +212,8 @@ export default async function handler(req: any, res: any) {
 
       const consumed: RemoteAccessRecord = {
         ...existing,
-        consumedAt: new Date().toISOString(),
+        usedCount: Math.min(existing.usedCount + 1, existing.maxUses),
+        consumedAt: existing.usedCount + 1 >= existing.maxUses ? new Date().toISOString() : existing.consumedAt,
       };
 
       await writeJsonObject(accessObjectKey(templateId, accessKey), consumed);

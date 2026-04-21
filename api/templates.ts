@@ -3,6 +3,7 @@ import type { Template } from '@pdfme/common';
 import {
   ensureStorageReady,
   getPrincipal,
+  isAccessActive,
   json,
   normalizeTemplateSummary,
   principalCandidates,
@@ -90,7 +91,7 @@ export default async function handler(req: any, res: any) {
         }
 
         const access = principal.isAdmin ? null : await loadFirstAccess(templateId, principal);
-        const hasAccess = principal.isAdmin || Boolean(access && !access.consumedAt && (!access.expiresAt || new Date(access.expiresAt).getTime() > Date.now()));
+        const hasAccess = principal.isAdmin || isAccessActive(access);
 
         if (record.status !== 'published' && !principal.isAdmin) {
           json(res, 403, { error: 'Template non publié' });
@@ -152,7 +153,7 @@ export default async function handler(req: any, res: any) {
 
       json(res, 200, {
         template: toRecord(record),
-        accessUrl: `/remplir?templateId=${record.id}`,
+        accessUrl: `/user?templateId=${record.id}`,
       });
       return;
     }

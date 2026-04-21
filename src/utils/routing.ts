@@ -1,10 +1,14 @@
 import type { RouteName } from '../types/app';
 
 export function parseRoute(pathname: string): RouteName {
-  if (pathname === '/remplir') return 'remplir';
-  return 'design';
+  if (pathname === '/' || pathname === '/login') return 'login';
+  if (pathname === '/admin' || pathname === '/design') return 'admin';
+  if (pathname === '/user' || pathname === '/remplir') return 'user';
+  return 'login';
 }
 
 export function routePath(route: RouteName) {
-  return `/${route}`;
+  if (route === 'login') return '/login';
+  if (route === 'admin') return '/admin';
+  return '/user';
 }

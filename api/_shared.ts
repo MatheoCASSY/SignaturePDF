@@ -33,6 +33,8 @@ export type RemoteAccessRecord = {
   consumedAt: string | null;
   expiresAt: string | null;
   grantedBy: string | null;
+  maxUses: number;
+  usedCount: number;
 };
 
 let jwksCache: ReturnType<typeof createRemoteJWKSet> | null = null;
@@ -93,6 +95,32 @@ export function normalizeTemplateSummary(record: RemoteTemplateRecord): RemoteTe
     updatedAt: record.updatedAt,
     publishedAt: record.publishedAt,
   };
+}
+
+export function normalizeAccessRecord(record: Partial<RemoteAccessRecord> & { templateId: string; principal: string; grantedAt: string }) {
+  const maxUses = Number.isFinite(Number(record.maxUses)) && Number(record.maxUses) > 0 ? Math.floor(Number(record.maxUses)) : 1;
+  const usedCount = Number.isFinite(Number(record.usedCount)) && Number(record.usedCount) >= 0 ? Math.min(Math.floor(Number(record.usedCount)), maxUses) : record.consumedAt ? maxUses : 0;
+
+  return {
+    templateId: record.templateId,
+    principal: record.principal,
+    grantedAt: record.grantedAt,
+    consumedAt: record.consumedAt ?? null,
+    expiresAt: record.expiresAt ?? null,
+    grantedBy: record.grantedBy ?? null,
+    maxUses,
+    usedCount,
+  } satisfies RemoteAccessRecord;
+}
+
+export function isAccessActive(record: RemoteAccessRecord | null | undefined) {
+  if (!record) return false;
+  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) return false;
+  const maxUses = Number.isFinite(Number(record.maxUses)) && Number(record.maxUses) > 0 ? Math.floor(Number(record.maxUses)) : 1;
+  const usedCount = Number.isFinite(Number(record.usedCount)) && Number(record.usedCount) >= 0 ? Math.floor(Number(record.usedCount)) : record.consumedAt ? maxUses : 0;
+
+  if (record.consumedAt && usedCount <= 0) return false;
+  return usedCount < maxUses;
 }
 
 function isMissingObjectError(error: unknown) {

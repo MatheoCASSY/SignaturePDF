@@ -26,6 +26,16 @@ export type RemoteAccessRecord = {
   grantedAt: string;
   consumedAt: string | null;
   expiresAt: string | null;
+  grantedBy?: string | null;
+  maxUses: number;
+  usedCount: number;
+};
+
+export type RemoteInboxDocument = {
+  template: RemoteTemplateSummary;
+  access: RemoteAccessRecord;
+  allowed: boolean;
+  isAdmin: boolean;
 };
 
 export type RemoteAccessCheck = {
@@ -88,6 +98,7 @@ export function grantRemoteAccess(payload: {
   templateId: string;
   principal: string;
   expiresAt?: string | null;
+  maxUses?: number;
 }, token: string) {
   return requestJson<{ access: RemoteAccessRecord }>('/api/access', {
     method: 'POST',
@@ -107,5 +118,11 @@ export function consumeRemoteAccess(templateId: string, token: string) {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ templateId }),
+  });
+}
+
+export function loadRemoteInbox(token?: string) {
+  return requestJson<{ documents: RemoteInboxDocument[]; principal: string | null; isAdmin: boolean }>('/api/access', {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
 }

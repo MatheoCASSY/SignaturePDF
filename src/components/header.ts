@@ -1,8 +1,12 @@
 import type { AuthViewState, RouteName } from '../types/app';
 
 export function renderHeader(route: RouteName, pageCount: number, fieldCount: number, auth: AuthViewState) {
-  const routeLabel = route === 'design' ? 'Designer le PDF' : 'Remplir le PDF';
-  const authLabel = auth.isLoading ? 'Connexion...' : auth.isAuthenticated ? auth.email || 'Connecte' : 'Non connecte';
+  const routeLabel = route === 'login' ? 'Connexion' : route === 'admin' ? 'Administration' : 'Signature';
+  const authLabel = auth.isLoading
+    ? 'Connexion...'
+    : auth.isAuthenticated
+      ? auth.email || (auth.isAdmin ? 'Admin' : 'Connecte')
+      : 'Non connecte';
   const expiresAtLabel =
     auth.isAuthenticated && auth.expiresAt
       ? `Expire ${new Date(auth.expiresAt * 1000).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`
@@ -19,21 +23,26 @@ export function renderHeader(route: RouteName, pageCount: number, fieldCount: nu
         <span class="brand-mark">FR</span>
         <div>
           <p class="eyebrow">pdfme studio</p>
-          <h1>Deux pages, un flux clair</h1>
-          <p class="brand-subtitle">Crée ton template sur une page, puis remplis-le sur l'autre. Importe aussi ton PDF de base quand tu veux partir d'un document existant.</p>
+          <h1>Connexion, administration et signature</h1>
+          <p class="brand-subtitle">Un espace pour préparer les documents, un autre pour les signer, et une porte d’entrée Cognito qui oriente automatiquement chaque utilisateur.</p>
         </div>
       </div>
 
       <nav class="mode-switch" aria-label="Navigation">
-        <a class="mode-card ${route === 'design' ? 'active' : ''}" href="/design" data-route-link="design">
+        <a class="mode-card ${route === 'login' ? 'active' : ''}" href="/login" data-route-link="login">
           <span class="mode-card-label">Page 1</span>
-          <strong>Design</strong>
-          <small>Importer un PDF, ajouter des champs, construire le template</small>
+          <strong>Connexion</strong>
+          <small>Entrer dans l’espace Cognito puis être orienté automatiquement</small>
         </a>
-        <a class="mode-card ${route === 'remplir' ? 'active' : ''}" href="/remplir" data-route-link="remplir">
+        <a class="mode-card ${route === 'admin' ? 'active' : ''}" href="/admin" data-route-link="admin">
           <span class="mode-card-label">Page 2</span>
-          <strong>Remplir</strong>
-          <small>Charger le template et les données, puis exporter le PDF final</small>
+          <strong>Admin</strong>
+          <small>Créer les templates, publier dans S3 et donner l’accès aux users</small>
+        </a>
+        <a class="mode-card ${route === 'user' ? 'active' : ''}" href="/user" data-route-link="user">
+          <span class="mode-card-label">Page 3</span>
+          <strong>Signature</strong>
+          <small>Voir les documents à signer, remplir les champs et exporter le PDF</small>
         </a>
       </nav>
 

@@ -1,8 +1,8 @@
 import type { TodoItem } from '../types/app';
 
 export const defaultTodos = (): TodoItem[] => [
-  { id: 1, title: 'Choisir le template', details: 'Prendre un modele ou charger un JSON.', done: true },
-  { id: 2, title: 'Ajouter les champs', details: 'Utiliser la palette du designer pour construire le document.', done: true },
-  { id: 3, title: 'Generer le PDF interactif', details: 'Exporter un PDF avec champs remplissables.', done: false },
-  { id: 4, title: 'Remplir et recuperer', details: 'Saisir les donnees puis telecharger le PDF final.', done: false },
+  { id: 1, title: 'Se connecter', details: 'Passer par Cognito puis rejoindre la bonne page selon le role.', done: true },
+  { id: 2, title: 'Construire le template', details: 'Utiliser la page admin pour composer le document et ses champs.', done: true },
+  { id: 3, title: 'Publier et autoriser', details: 'Enregistrer dans S3 puis donner des acces simples ou multi-usages.', done: false },
+  { id: 4, title: 'Signer et exporter', details: 'Ouvrir un document attribue, remplir les champs puis telecharger le PDF.', done: false },
 ];

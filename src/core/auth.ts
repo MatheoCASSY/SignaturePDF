@@ -19,9 +19,19 @@ function hasSigninCallbackParams() {
 }
 
 function normalizeReturnTo(value: unknown) {
-  if (typeof value !== 'string') return '/design';
-  if (!value.startsWith('/')) return '/design';
+  if (typeof value !== 'string') return '/login';
+  if (!value.startsWith('/')) return '/login';
   return value;
+}
+
+function isAdminProfile(profile: Record<string, unknown> | undefined) {
+  if (!profile) return false;
+
+  const groups = Array.isArray(profile['cognito:groups']) ? profile['cognito:groups'].map((value) => String(value).toLowerCase()) : [];
+  const customRole = String(profile['custom:role'] || '').toLowerCase();
+  const adminGroup = String(cognitoAuthConfig.adminGroup || 'pdfme-admins').toLowerCase();
+
+  return groups.includes(adminGroup) || customRole === 'admin' || customRole === 'administrator';
 }
 
 export async function hydrateAuthSession() {
@@ -56,9 +66,11 @@ export function startCognitoLogoutRedirect() {
 }
 
 export function toAuthSnapshot(user: User | null) {
+  const profile = (user?.profile || undefined) as Record<string, unknown> | undefined;
   return {
     isAuthenticated: Boolean(user && !user.expired),
-    email: String(user?.profile?.email || user?.profile?.['cognito:username'] || ''),
+    isAdmin: isAdminProfile(profile),
+    email: String(profile?.email || profile?.['cognito:username'] || ''),
     expiresAt: typeof user?.expires_at === 'number' ? user.expires_at : null,
     accessToken: user?.access_token || '',
     idToken: user?.id_token || '',

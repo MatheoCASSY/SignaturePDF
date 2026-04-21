@@ -1,6 +1,6 @@
 import type { Template } from '@pdfme/common';
 
-export type RouteName = 'design' | 'remplir';
+export type RouteName = 'login' | 'admin' | 'user';
 
 export type NoticeTone = 'info' | 'success' | 'warning' | 'danger';
 
@@ -29,8 +29,27 @@ export type RemoteAccessStatus = {
     grantedAt: string;
     consumedAt: string | null;
     expiresAt: string | null;
+    grantedBy?: string | null;
+    maxUses: number;
+    usedCount: number;
   } | null;
   template?: RemoteTemplateSummary;
+};
+
+export type RemoteInboxDocument = {
+  template: RemoteTemplateSummary;
+  access: {
+    templateId: string;
+    principal: string;
+    grantedAt: string;
+    consumedAt: string | null;
+    expiresAt: string | null;
+    grantedBy?: string | null;
+    maxUses: number;
+    usedCount: number;
+  };
+  allowed: boolean;
+  isAdmin: boolean;
 };
 
 export type TodoItem = {
@@ -71,11 +90,15 @@ export type AppState = {
   templateName: string;
   remoteTemplates: RemoteTemplateSummary[];
   remoteAccess: RemoteAccessStatus | null;
+  remoteInbox: RemoteInboxDocument[];
+  selectedInboxTemplateId: string;
+  adminAccessMaxUses: number;
 };
 
 export type AuthViewState = {
   isLoading: boolean;
   isAuthenticated: boolean;
+  isAdmin: boolean;
   email: string;
   expiresAt: number | null;
 };

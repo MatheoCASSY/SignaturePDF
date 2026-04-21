@@ -1,10 +1,10 @@
-export function renderRemplirLeft(progress: { done: number; total: number }) {
+export function renderUserLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
-        <p class="eyebrow">Page 2</p>
-        <h2>Remplir le document</h2>
-        <p class="muted">Charge un template publié, complète les champs, signe en ligne, puis télécharge le PDF final. L’accès peut être limité à un user Cognito précis et n’être consommable qu’une seule fois.</p>
+        <p class="eyebrow">Page 3</p>
+        <h2>Documents à signer</h2>
+        <p class="muted">Tu vois ici les documents qui t’ont été attribués. Ouvre un document, complète la popup de contrôle, signe puis exporte le PDF final.</p>
       </div>
 
       <div class="section-card accent-card">
@@ -13,8 +13,8 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
           <span class="subtle">simple et guidé</span>
         </div>
         <div class="step-list">
-          <div class="step-item"><strong>1.</strong><span>Ouvre le template envoyé.</span></div>
-          <div class="step-item"><strong>2.</strong><span>Les champs obligatoires et la date du jour sont déjà prêts.</span></div>
+          <div class="step-item"><strong>1.</strong><span>Choisis un document dans ta liste.</span></div>
+          <div class="step-item"><strong>2.</strong><span>Renseigne les informations demandées dans la popup.</span></div>
           <div class="step-item"><strong>3.</strong><span>Signe, vérifie puis télécharge le PDF à renvoyer.</span></div>
         </div>
       </div>
@@ -25,18 +25,25 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="final-pdf">PDF final</button>
-          <button class="action-button" data-action="load-remote-template">Ouvrir publié</button>
+          <button class="action-button" data-action="refresh-inbox">Actualiser la liste</button>
           <button class="action-button" data-action="preview-pdf">Apercu</button>
           <button class="action-button" data-action="fill-example">Remplir exemple</button>
           <button class="action-button" data-action="clear-inputs">Vider</button>
-          <button class="action-button" data-action="load-contract">Contrat</button>
-          <button class="action-button" data-action="load-invoice">Facture</button>
+          <button class="action-button" data-action="load-remote-template">Ouvrir par ID</button>
         </div>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Accès et publication</span>
+          <span>Documents à signer</span>
+          <span class="subtle">Inbox</span>
+        </div>
+        <div id="remote-inbox-list" class="summary-stack"></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <span>Ouverture manuelle</span>
         </div>
         <div class="stack gap-md">
           <label class="field-stack">
@@ -57,7 +64,7 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
               <input type="file" id="inputs-file" accept="application/json" hidden />
             </label>
           </div>
-          <p class="card-note">Si tu veux repartir d’un PDF de base, retourne sur la page Design et réimporte ton document. Le token Cognito sert à vérifier l’accès au template publié.</p>
+          <p class="card-note">Cette zone sert surtout à l’ouverture directe d’un document. En usage normal, sélectionne d’abord un document depuis l’inbox de gauche.</p>
         </div>
       </div>
 
@@ -72,7 +79,7 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
   `;
 }
 
-export function renderRemplirRight() {
+export function renderUserRight() {
   return `
     <section class="stack gap-lg">
       <div class="section-card">
@@ -108,6 +115,21 @@ export function renderRemplirRight() {
           <span>Journal</span>
         </div>
         <div id="notice-list" class="notice-list"></div>
+      </div>
+
+      <div id="document-modal" class="document-modal hidden" aria-hidden="true">
+        <div class="document-modal-backdrop" data-action="close-document-modal"></div>
+        <div class="document-modal-card panel">
+          <div class="section-card-head">
+            <span>Document sélectionné</span>
+            <button class="ghost-button" data-action="close-document-modal">Fermer</button>
+          </div>
+          <div id="document-modal-content" class="summary-stack"></div>
+          <div class="modal-actions">
+            <button class="action-button primary" data-action="load-selected-document">Ouvrir le document</button>
+            <button class="action-button" data-action="final-pdf">Signer et exporter</button>
+          </div>
+        </div>
       </div>
     </section>
   `;

@@ -9,6 +9,7 @@ export const cognitoAuthConfig = {
   redirectUri: import.meta.env.VITE_COGNITO_REDIRECT_URI || DEFAULT_REDIRECT_URI,
   postLogoutRedirectUri: import.meta.env.VITE_COGNITO_LOGOUT_URI || DEFAULT_REDIRECT_URI,
   cognitoDomain: import.meta.env.VITE_COGNITO_DOMAIN || DEFAULT_COGNITO_DOMAIN,
+  adminGroup: import.meta.env.VITE_COGNITO_ADMIN_GROUP || 'pdfme-admins',
   responseType: 'code',
   scope: import.meta.env.VITE_COGNITO_SCOPE || 'aws.cognito.signin.user.admin openid profile',
 };

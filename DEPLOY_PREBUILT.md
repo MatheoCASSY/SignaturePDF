@@ -57,15 +57,16 @@ Variables frontend OIDC (Vite) pour le login Cognito:
 - `VITE_COGNITO_REDIRECT_URI` (ex: `https://nexsite.fr`)
 - `VITE_COGNITO_LOGOUT_URI` (souvent la meme URL que le redirect)
 - `VITE_COGNITO_DOMAIN` (domaine Hosted UI Cognito, ex: `https://<ton-domaine>.auth.eu-west-1.amazoncognito.com`)
+- `VITE_COGNITO_ADMIN_GROUP` si tu veux personnaliser le groupe admin détecté côté client
 - `VITE_COGNITO_SCOPE` (ex: `aws.cognito.signin.user.admin openid profile`)
 
 Comportement:
 
-- La page Design sert d'administration pour publier un template et lui attribuer des accès Cognito.
-- Le bouton "Se connecter" déclenche le login OIDC Cognito et injecte automatiquement le token access.
-- La page Remplir vérifie ce token Cognito avant de charger un template publié.
+- La page Login oriente automatiquement vers Admin ou Signature selon le rôle Cognito.
+- La page Admin sert à publier un template, l'enregistrer dans S3 et lui attribuer des accès Cognito.
+- La page Signature liste les documents attribués à l'utilisateur, permet de remplir les champs puis d'exporter le PDF final.
 - Les templates et les accès sont persistés dans des objets JSON S3.
-- Un accès est consommé après export du PDF final.
+- Un accès est consommé après export du PDF final, ou peut autoriser plusieurs usages si l'admin le configure.
 
 ## IAM minimale recommandee
 

@@ -27,6 +27,7 @@ import {
   consumeRemoteAccess,
   grantRemoteAccess,
   loadRemoteTemplate,
+  loadRemoteInbox,
   loadRemoteTemplates,
   saveRemoteTemplate,
 } from './core/remote';
@@ -66,6 +67,9 @@ const state: AppState = {
   templateName: loadTemplateName(),
   remoteTemplates: [],
   remoteAccess: null,
+  remoteInbox: [],
+  selectedInboxTemplateId: '',
+  adminAccessMaxUses: 1,
 };
 
 state.inputs = loadInputs(state.template);
@@ -102,6 +106,7 @@ const PDFME_GENERATOR_CDN_URL = 'https://esm.sh/@pdfme/generator@6.0.6?bundle';
 const authView: AuthViewState = {
   isLoading: true,
   isAuthenticated: false,
+  isAdmin: false,
   email: '',
   expiresAt: null,
 };
@@ -129,6 +134,7 @@ async function startup() {
   await bootstrapAuth();
   syncRouteFromLocation();
   hydrateTemplateIdFromUrl();
+  syncAuthState();
   ensureRoute();
   renderShell();
   void mountUi();
@@ -136,6 +142,7 @@ async function startup() {
   refreshSummary();
   refreshTodoPanel();
   refreshNotices();
+  void refreshRouteData();
   window.addEventListener('popstate', onLocationChange);
 }
 
@@ -152,17 +159,12 @@ function hydrateTemplateIdFromUrl() {
   persistRemoteTemplateId(templateId);
 }
 
-function ensureRoute() {
-  if (location.pathname !== routePath(state.route)) {
-    history.replaceState({}, '', routePath(state.route));
-  }
-}
-
 async function bootstrapAuth() {
   try {
     const user = await hydrateAuthSession();
     const snapshot = toAuthSnapshot(user);
     authView.isAuthenticated = snapshot.isAuthenticated;
+    authView.isAdmin = snapshot.isAdmin;
     authView.email = snapshot.email;
     authView.expiresAt = snapshot.expiresAt;
 
@@ -181,12 +183,15 @@ function onLocationChange() {
   const nextRoute = parseRoute(location.pathname);
   if (nextRoute !== state.route) {
     state.route = nextRoute;
+    syncAuthState();
+    ensureRoute();
     renderShell();
     void mountUi();
     syncEditors();
     refreshSummary();
     refreshTodoPanel();
     refreshNotices();
+    void refreshRouteData();
   }
 }
 
@@ -217,7 +222,7 @@ function bindShellEvents() {
     button.addEventListener('click', async () => {
       const action = button.dataset.action;
       if (!action) return;
-      await handleAction(action);
+      await handleAction(action, button);
     });
   });
 
@@ -236,6 +241,7 @@ function bindShellEvents() {
   const templateNameInput = document.querySelector<HTMLInputElement>('#template-name');
   const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
   const accessPrincipalsInput = document.querySelector<HTMLTextAreaElement>('#access-principals');
+  const accessMaxUsesInput = document.querySelector<HTMLInputElement>('#access-max-uses');
 
   templateInput?.addEventListener('change', async () => {
     const file = templateInput.files?.[0];
@@ -247,7 +253,7 @@ function bindShellEvents() {
 
   basePdfInput?.addEventListener('change', async () => {
     const file = basePdfInput.files?.[0];
-    if (!file || state.route !== 'design') return;
+    if (!file || state.route !== 'admin') return;
     const dataUrl = await readFileAsDataUrl(file);
     const nextTemplate = cloneDeep(state.template);
     nextTemplate.basePdf = dataUrl;
@@ -257,7 +263,7 @@ function bindShellEvents() {
 
   inputsInput?.addEventListener('change', async () => {
     const file = inputsInput.files?.[0];
-    if (!file || state.route !== 'remplir') return;
+    if (!file || state.route !== 'user') return;
     const parsed = await readJsonFile(file);
     applyInputs(parsed);
     inputsInput.value = '';
@@ -282,6 +288,11 @@ function bindShellEvents() {
     // Stateless: only used when publishing/granting access.
   });
 
+  accessMaxUsesInput?.addEventListener('input', () => {
+    const parsed = Number(accessMaxUsesInput.value);
+    state.adminAccessMaxUses = Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
+  });
+
   const templateText = document.querySelector<HTMLTextAreaElement>('#template-json');
   const inputsText = document.querySelector<HTMLTextAreaElement>('#inputs-json');
 
@@ -298,18 +309,58 @@ function navigateTo(route: RouteName) {
   if (route === state.route) return;
   state.route = route;
   history.pushState({}, '', routePath(route));
+  ensureRoute();
+  syncAuthState();
   renderShell();
   void mountUi();
   syncEditors();
   refreshSummary();
   refreshTodoPanel();
   refreshNotices();
+  void refreshRouteData();
+}
+
+function syncAuthState() {
+  if (!authView.isAuthenticated) {
+    if (state.route !== 'login') {
+      state.route = 'login';
+      history.replaceState({}, '', routePath('login'));
+    }
+    return;
+  }
+
+  if (state.route === 'login') {
+    state.route = authView.isAdmin ? 'admin' : 'user';
+    history.replaceState({}, '', routePath(state.route));
+  }
+
+  if (state.route === 'admin' && !authView.isAdmin) {
+    state.route = 'user';
+    history.replaceState({}, '', routePath(state.route));
+  }
+
+}
+
+function ensureRoute() {
+  const desiredRoute = routePath(state.route);
+  if (location.pathname !== desiredRoute) {
+    history.replaceState({}, '', desiredRoute);
+  }
 }
 
 async function mountUi() {
   const requestId = ++mountRequestId;
   const mount = document.querySelector<HTMLDivElement>('#pdfme-mount');
   if (!mount) return;
+
+  if (state.route === 'login') {
+    if (activeUi) {
+      activeUi.destroy();
+      activeUi = null;
+      activeUiKind = null;
+    }
+    return;
+  }
 
   if (activeUi) {
     activeUi.destroy();
@@ -324,10 +375,10 @@ async function mountUi() {
 
   const commonOptions = {
     lang: state.lang,
-    ...(state.route === 'design' ? DESIGNER_OPTIONS : FORM_OPTIONS),
+    ...(state.route === 'admin' ? DESIGNER_OPTIONS : FORM_OPTIONS),
   };
 
-  if (state.route === 'design') {
+  if (state.route === 'admin') {
     const designer = new Designer({
       domContainer: mount,
       template: state.template,
@@ -357,7 +408,7 @@ async function mountUi() {
     });
 
     activeUi = designer;
-    activeUiKind = 'design';
+    activeUiKind = 'admin';
     return;
   }
 
@@ -382,22 +433,32 @@ async function mountUi() {
   });
 
   activeUi = form;
-  activeUiKind = 'remplir';
+  activeUiKind = 'user';
 }
 
 function getDesignerUi() {
-  if (state.route !== 'design' || activeUiKind !== 'design' || !activeUi) return null;
+  if (state.route !== 'admin' || activeUiKind !== 'admin' || !activeUi) return null;
   return activeUi as DesignerLike;
 }
 
 function getFormUi() {
-  if (state.route !== 'remplir' || activeUiKind !== 'remplir' || !activeUi) return null;
+  if (state.route !== 'user' || activeUiKind !== 'user' || !activeUi) return null;
   return activeUi as FormLike;
 }
 
-async function handleAction(action: string) {
+async function handleAction(action: string, button?: HTMLButtonElement) {
   if (action === 'auth-signin') {
     await signInWithCognito();
+    return;
+  }
+
+  if (action === 'goto-admin') {
+    navigateTo('admin');
+    return;
+  }
+
+  if (action === 'goto-user') {
+    navigateTo('user');
     return;
   }
 
@@ -422,6 +483,11 @@ async function handleAction(action: string) {
     return;
   }
 
+  if (action === 'refresh-inbox') {
+    await refreshRemoteInbox();
+    return;
+  }
+
   if (action === 'publish-template') {
     await publishCurrentTemplate();
     return;
@@ -429,6 +495,26 @@ async function handleAction(action: string) {
 
   if (action === 'load-remote-template') {
     await loadPublishedTemplate();
+    return;
+  }
+
+  if (action === 'open-inbox-template') {
+    const templateId = button?.dataset.templateId || '';
+    if (templateId) {
+      await openInboxDocument(templateId);
+    }
+    return;
+  }
+
+  if (action === 'load-selected-document') {
+    if (state.selectedInboxTemplateId) {
+      await openInboxDocument(state.selectedInboxTemplateId, true);
+    }
+    return;
+  }
+
+  if (action === 'close-document-modal') {
+    closeDocumentModal();
     return;
   }
 
@@ -514,11 +600,17 @@ async function signInWithCognito() {
 async function signOutFromCognito() {
   await clearOidcSession();
   authView.isAuthenticated = false;
+  authView.isAdmin = false;
   authView.email = '';
   authView.expiresAt = null;
   authView.isLoading = false;
   state.authToken = '';
   persistAuthToken('');
+  state.remoteAccess = null;
+  state.remoteInbox = [];
+  state.selectedInboxTemplateId = '';
+  state.route = 'login';
+  history.replaceState({}, '', routePath('login'));
   renderShell();
   startCognitoLogoutRedirect();
 }
@@ -531,6 +623,7 @@ async function refreshAuthSession() {
     const user = await getStoredAuthSession();
     const snapshot = toAuthSnapshot(user);
     authView.isAuthenticated = snapshot.isAuthenticated;
+    authView.isAdmin = snapshot.isAdmin;
     authView.email = snapshot.email;
     authView.expiresAt = snapshot.expiresAt;
     authView.isLoading = false;
@@ -543,6 +636,7 @@ async function refreshAuthSession() {
     } else {
       pushNotice('Session Cognito rafraichie depuis le stockage local.', 'info');
     }
+    syncAuthState();
   } catch (error) {
     authView.isLoading = false;
     pushNotice(`Impossible de rafraichir la session: ${(error as Error).message}`, 'danger');
@@ -554,6 +648,64 @@ async function refreshAuthSession() {
   refreshTodoPanel();
   refreshNotices();
   void mountUi();
+  void refreshRouteData();
+}
+
+async function refreshRouteData() {
+  if (!authView.isAuthenticated) return;
+
+  if (state.route === 'admin') {
+    await refreshRemoteTemplates(true);
+  }
+
+  if (state.route === 'user') {
+    await refreshRemoteInbox(true);
+    if (state.remoteTemplateId) {
+      await loadPublishedTemplate(true);
+    }
+  }
+}
+
+async function openInboxDocument(templateId: string, keepModalOpen = false, silent = false) {
+  state.selectedInboxTemplateId = templateId;
+  state.remoteTemplateId = templateId;
+  persistRemoteTemplateId(templateId);
+  syncAdminFields();
+
+  try {
+    const access = await checkRemoteAccess(templateId, state.authToken || undefined);
+    state.remoteAccess = access;
+
+    if (!access.allowed) {
+      syncRemotePanels();
+      if (!silent) {
+        pushNotice(`Acces refuse: ${access.reason}`, 'danger');
+      }
+      return;
+    }
+
+    const { template } = await loadRemoteTemplate(templateId, state.authToken || undefined);
+    applyTemplate(template.template, true);
+    state.templateName = template.name;
+    persistTemplateName(state.templateName);
+    syncAdminFields();
+    syncRemotePanels();
+    if (!keepModalOpen) {
+      closeDocumentModal();
+    }
+    if (!silent) {
+      pushNotice(`Document charge: ${template.name}`, 'success');
+    }
+  } catch (error) {
+    if (!silent) {
+      pushNotice(`Chargement du document impossible: ${(error as Error).message}`, 'danger');
+    }
+  }
+}
+
+function closeDocumentModal() {
+  state.selectedInboxTemplateId = '';
+  syncRemotePanels();
 }
 
 function appendField(kind: FieldKind) {
@@ -591,6 +743,7 @@ function applyTemplate(value: Template, preserveRemoteLink = false) {
   if (!preserveRemoteLink) {
     state.remoteTemplateId = '';
     state.remoteAccess = null;
+    state.selectedInboxTemplateId = '';
     persistRemoteTemplateId('');
   }
 
@@ -615,7 +768,7 @@ function applyInputs(value: unknown) {
 
 function applyJsonFromEditors() {
   try {
-    if (state.route === 'design') {
+    if (state.route === 'admin') {
       const parsedTemplate = JSON.parse(state.templateDraft) as Template;
       applyTemplate(parsedTemplate);
       return;
@@ -663,14 +816,34 @@ function clearInputs() {
   pushNotice('Inputs reinitialises.', 'warning');
 }
 
-async function refreshRemoteTemplates() {
+async function refreshRemoteTemplates(silent = false) {
   try {
     const { templates } = await loadRemoteTemplates(state.authToken || undefined);
     state.remoteTemplates = templates;
     syncRemotePanels();
-    pushNotice(`${templates.length} template(s) distant(s) charge(s).`, 'info');
+    if (!silent) {
+      pushNotice(`${templates.length} template(s) distant(s) charge(s).`, 'info');
+    }
   } catch (error) {
     pushNotice(`Impossible de charger les templates distants: ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function refreshRemoteInbox(silent = false) {
+  try {
+    const { documents } = await loadRemoteInbox(state.authToken || undefined);
+    state.remoteInbox = documents;
+
+    if (state.remoteInbox.length > 0 && !state.selectedInboxTemplateId) {
+      state.selectedInboxTemplateId = state.remoteInbox[0].template.id;
+    }
+
+    syncRemotePanels();
+    if (!silent) {
+      pushNotice(`${documents.length} document(s) à signer chargé(s).`, 'info');
+    }
+  } catch (error) {
+    pushNotice(`Impossible de charger l'inbox: ${(error as Error).message}`, 'danger');
   }
 }
 
@@ -700,49 +873,34 @@ async function publishCurrentTemplate() {
 
     const principals = getAccessPrincipals();
     if (principals.length > 0) {
-      await Promise.allSettled(principals.map((principal) => grantRemoteAccess({ templateId: result.template.id, principal }, state.authToken)));
+      await Promise.allSettled(principals.map((principal) => grantRemoteAccess({ templateId: result.template.id, principal, maxUses: state.adminAccessMaxUses }, state.authToken)));
     }
 
     await refreshRemoteTemplates();
+    await refreshRemoteInbox();
     pushNotice(`Template publie: ${result.template.id}`, 'success');
   } catch (error) {
     pushNotice(`Publication impossible: ${(error as Error).message}`, 'danger');
   }
 }
 
-async function loadPublishedTemplate() {
+async function loadPublishedTemplate(silent = false) {
   const templateId = getRemoteTemplateIdValue();
   if (!templateId) {
-    pushNotice('Renseigne un ID de template publie.', 'warning');
+    if (!silent) {
+      pushNotice('Renseigne un ID de template publie.', 'warning');
+    }
     return;
   }
 
   if (!state.authToken) {
-    pushNotice('Ajoute un jeton Cognito avant de charger un template publie.', 'warning');
+    if (!silent) {
+      pushNotice('Ajoute un jeton Cognito avant de charger un template publie.', 'warning');
+    }
     return;
   }
 
-  try {
-    const access = await checkRemoteAccess(templateId, state.authToken);
-    state.remoteAccess = access;
-    syncRemotePanels();
-
-    if (!access.allowed) {
-      pushNotice(`Acces refuse: ${access.reason}`, 'danger');
-      return;
-    }
-
-    const { template } = await loadRemoteTemplate(templateId, state.authToken);
-    applyTemplate(template.template, true);
-    state.templateName = template.name;
-    state.remoteTemplateId = template.id;
-    persistRemoteTemplateId(state.remoteTemplateId);
-    persistTemplateName(state.templateName);
-    syncAdminFields();
-    pushNotice(`Template publie charge: ${template.name}`, 'success');
-  } catch (error) {
-    pushNotice(`Chargement distant impossible: ${(error as Error).message}`, 'danger');
-  }
+  await openInboxDocument(templateId, false, silent);
 }
 
 function getTemplateNameValue() {
@@ -769,6 +927,7 @@ function syncAdminFields() {
   const authTokenInput = document.querySelector<HTMLInputElement>('#auth-token');
   const templateNameInput = document.querySelector<HTMLInputElement>('#template-name');
   const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
+  const accessMaxUsesInput = document.querySelector<HTMLInputElement>('#access-max-uses');
 
   if (authTokenInput && authTokenInput.value !== state.authToken) {
     authTokenInput.value = state.authToken;
@@ -780,6 +939,10 @@ function syncAdminFields() {
 
   if (remoteTemplateInput && remoteTemplateInput.value !== state.remoteTemplateId) {
     remoteTemplateInput.value = state.remoteTemplateId;
+  }
+
+  if (accessMaxUsesInput && Number(accessMaxUsesInput.value) !== state.adminAccessMaxUses) {
+    accessMaxUsesInput.value = String(state.adminAccessMaxUses);
   }
 }
 
@@ -800,18 +963,63 @@ function syncRemotePanels() {
       : '<p class="notice-empty">Aucun template publie pour le moment.</p>';
   }
 
+  const remoteInboxList = document.querySelector<HTMLDivElement>('#remote-inbox-list');
+  if (remoteInboxList) {
+    remoteInboxList.innerHTML = state.remoteInbox.length
+      ? state.remoteInbox
+          .map(
+            (entry) => `
+              <button class="summary-row inbox-row ${entry.template.id === state.selectedInboxTemplateId ? 'active' : ''}" data-action="open-inbox-template" data-template-id="${escapeHtml(entry.template.id)}">
+                <strong>${escapeHtml(entry.template.name)}</strong>
+                <span>${escapeHtml(entry.access.principal)} · ${entry.access.usedCount}/${entry.access.maxUses}</span>
+              </button>
+            `,
+          )
+          .join('')
+      : '<p class="notice-empty">Aucun document attribué pour le moment.</p>';
+  }
+
   const accessStatus = document.querySelector<HTMLDivElement>('#access-status');
   if (accessStatus) {
     if (!state.remoteAccess) {
       accessStatus.innerHTML = '<p class="notice-empty">Charge un template pour verifier l’accès Cognito.</p>';
     } else {
+      const access = state.remoteAccess.access;
       accessStatus.innerHTML = `
         <div class="summary-row"><strong>Autorise</strong><span>${state.remoteAccess.allowed ? 'oui' : 'non'}</span></div>
         <div class="summary-row"><strong>Motif</strong><span>${escapeHtml(state.remoteAccess.reason)}</span></div>
         <div class="summary-row"><strong>Principal</strong><span>${escapeHtml(state.remoteAccess.principal || '-')}</span></div>
+        <div class="summary-row"><strong>Utilisations</strong><span>${access ? `${access.usedCount}/${access.maxUses}` : '-'}</span></div>
       `;
     }
   }
+
+  syncDocumentModal();
+}
+
+function syncDocumentModal() {
+  const modal = document.querySelector<HTMLDivElement>('#document-modal');
+  const content = document.querySelector<HTMLDivElement>('#document-modal-content');
+  if (!modal || !content) return;
+
+  const selected = state.remoteInbox.find((item) => item.template.id === state.selectedInboxTemplateId) || null;
+  const isVisible = Boolean(selected);
+
+  modal.classList.toggle('hidden', !isVisible);
+  modal.setAttribute('aria-hidden', String(!isVisible));
+
+  if (!selected) {
+    content.innerHTML = '<p class="notice-empty">Sélectionne un document dans l’inbox.</p>';
+    return;
+  }
+
+  content.innerHTML = `
+    <div class="summary-row"><strong>Document</strong><span>${escapeHtml(selected.template.name)}</span></div>
+    <div class="summary-row"><strong>ID</strong><span>${escapeHtml(selected.template.id)}</span></div>
+    <div class="summary-row"><strong>Principal</strong><span>${escapeHtml(selected.access.principal)}</span></div>
+    <div class="summary-row"><strong>Utilisations</strong><span>${selected.access.usedCount}/${selected.access.maxUses}</span></div>
+    <div class="summary-row"><strong>Accès</strong><span>${selected.allowed ? 'autorisé' : 'bloqué'}</span></div>
+  `;
 }
 
 async function exportPdf(fillable: boolean) {

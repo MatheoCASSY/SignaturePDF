@@ -1,12 +1,12 @@
 import { quickFieldLibrary } from '../../config/ui';
 
-export function renderDesignLeft(progress: { done: number; total: number }) {
+export function renderAdminLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
         <p class="eyebrow">Page 1</p>
         <h2>Administration des templates</h2>
-        <p class="muted">Crée ton template, valide-le, publie-le sur Vercel puis autorise les utilisateurs Cognito à le remplir une fois.</p>
+        <p class="muted">Crée le template, publie-le dans S3, puis donne un accès à un ou plusieurs users Cognito avec le nombre d’utilisations voulu.</p>
       </div>
 
       <div class="section-card">
@@ -37,6 +37,10 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
           <label class="field-stack">
             <span>Jeton Cognito</span>
             <input id="auth-token" type="password" placeholder="Colle ici le token Cognito" />
+          </label>
+          <label class="field-stack">
+            <span>Nombre d’utilisations</span>
+            <input id="access-max-uses" type="number" min="1" step="1" value="1" />
           </label>
           <label class="field-stack">
             <span>Accès à donner</span>
@@ -86,7 +90,7 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
   `;
 }
 
-export function renderDesignRight() {
+export function renderAdminRight() {
   return `
     <section class="stack gap-lg">
       <div class="section-card">
