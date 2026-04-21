@@ -1,0 +1,111 @@
+import type { Template } from '@pdfme/common';
+
+export type RemoteTemplateRecord = {
+  id: string;
+  name: string;
+  status: 'draft' | 'published';
+  template: Template;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  ownerSub: string | null;
+  ownerEmail: string | null;
+};
+
+export type RemoteTemplateSummary = {
+  id: string;
+  name: string;
+  status: 'draft' | 'published';
+  updatedAt: string;
+  publishedAt: string | null;
+};
+
+export type RemoteAccessRecord = {
+  templateId: string;
+  principal: string;
+  grantedAt: string;
+  consumedAt: string | null;
+  expiresAt: string | null;
+};
+
+export type RemoteAccessCheck = {
+  allowed: boolean;
+  reason: string;
+  template?: RemoteTemplateSummary;
+  access?: RemoteAccessRecord | null;
+  principal?: string | null;
+  isAdmin?: boolean;
+};
+
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+    ...init,
+  });
+
+  const raw = await response.text();
+  const body = raw ? (JSON.parse(raw) as T) : (undefined as T);
+
+  if (!response.ok) {
+    const message = typeof body === 'object' && body && 'error' in (body as Record<string, unknown>)
+      ? String((body as Record<string, unknown>).error)
+      : response.statusText;
+    throw new Error(message || 'Erreur réseau');
+  }
+
+  return body;
+}
+
+export function loadRemoteTemplates(token?: string) {
+  return requestJson<{ templates: RemoteTemplateSummary[] }>('/api/templates', {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+}
+
+export function loadRemoteTemplate(templateId: string, token?: string) {
+  return requestJson<{ template: RemoteTemplateRecord }>('/api/templates?id=' + encodeURIComponent(templateId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+}
+
+export function saveRemoteTemplate(payload: {
+  id?: string;
+  name: string;
+  template: Template;
+  status?: 'draft' | 'published';
+}, token: string) {
+  return requestJson<{ template: RemoteTemplateRecord; accessUrl: string }>('/api/templates', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function grantRemoteAccess(payload: {
+  templateId: string;
+  principal: string;
+  expiresAt?: string | null;
+}, token: string) {
+  return requestJson<{ access: RemoteAccessRecord }>('/api/access', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function checkRemoteAccess(templateId: string, token?: string) {
+  return requestJson<RemoteAccessCheck>('/api/access?templateId=' + encodeURIComponent(templateId), {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+}
+
+export function consumeRemoteAccess(templateId: string, token: string) {
+  return requestJson<{ access: RemoteAccessRecord }>('/api/access', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ templateId }),
+  });
+}

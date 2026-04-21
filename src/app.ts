@@ -13,15 +13,37 @@ import {
   persistLang,
   persistTemplate,
   persistTodos,
+  loadAuthToken,
+  loadRemoteTemplateId,
+  loadTemplateName,
+  persistAuthToken,
+  persistRemoteTemplateId,
+  persistTemplateName,
 } from './core/storage';
 import { summarizeTemplate } from './core/template';
 import { fillTemplateDefaults } from './core/template';
+import {
+  checkRemoteAccess,
+  consumeRemoteAccess,
+  grantRemoteAccess,
+  loadRemoteTemplate,
+  loadRemoteTemplates,
+  saveRemoteTemplate,
+} from './core/remote';
+import {
+  clearOidcSession,
+  getStoredAuthSession,
+  hydrateAuthSession,
+  startCognitoLogoutRedirect,
+  startSigninRedirect,
+  toAuthSnapshot,
+} from './core/auth';
 import { renderAppShell } from './components/layout';
 import { getTodoProgress, renderTodoItems } from './components/todo';
 import { downloadBinary, downloadJson, readFileAsDataUrl, readJsonFile } from './utils/files';
 import { parseRoute, routePath } from './utils/routing';
 import { escapeHtml } from './utils/dom';
-import type { AppState, FieldKind, NoticeTone, RouteName } from './types/app';
+import type { AppState, AuthViewState, FieldKind, NoticeTone, RouteName } from './types/app';
 import './styles.css';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -39,6 +61,11 @@ const state: AppState = {
   todos: loadTodos(),
   templateDraft: '',
   inputsDraft: '',
+  authToken: loadAuthToken(),
+  remoteTemplateId: loadRemoteTemplateId(),
+  templateName: loadTemplateName(),
+  remoteTemplates: [],
+  remoteAccess: null,
 };
 
 state.inputs = loadInputs(state.template);
@@ -72,6 +99,13 @@ let generatorModulePromise: Promise<{ generate: (...args: any[]) => Promise<any>
 const PDFME_UI_CDN_URL = 'https://esm.sh/@pdfme/ui@6.0.6?bundle';
 const PDFME_GENERATOR_CDN_URL = 'https://esm.sh/@pdfme/generator@6.0.6?bundle';
 
+const authView: AuthViewState = {
+  isLoading: true,
+  isAuthenticated: false,
+  email: '',
+  expiresAt: null,
+};
+
 function loadUiModule() {
   if (!uiModulePromise) {
     uiModulePromise = import(/* @vite-ignore */ PDFME_UI_CDN_URL).then((module) => ({
@@ -91,7 +125,10 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
-function startup() {
+async function startup() {
+  await bootstrapAuth();
+  syncRouteFromLocation();
+  hydrateTemplateIdFromUrl();
   ensureRoute();
   renderShell();
   void mountUi();
@@ -102,9 +139,41 @@ function startup() {
   window.addEventListener('popstate', onLocationChange);
 }
 
+function syncRouteFromLocation() {
+  state.route = parseRoute(location.pathname);
+}
+
+function hydrateTemplateIdFromUrl() {
+  const query = new URLSearchParams(window.location.search);
+  const templateId = query.get('templateId');
+  if (!templateId) return;
+
+  state.remoteTemplateId = templateId;
+  persistRemoteTemplateId(templateId);
+}
+
 function ensureRoute() {
   if (location.pathname !== routePath(state.route)) {
     history.replaceState({}, '', routePath(state.route));
+  }
+}
+
+async function bootstrapAuth() {
+  try {
+    const user = await hydrateAuthSession();
+    const snapshot = toAuthSnapshot(user);
+    authView.isAuthenticated = snapshot.isAuthenticated;
+    authView.email = snapshot.email;
+    authView.expiresAt = snapshot.expiresAt;
+
+    if (snapshot.accessToken) {
+      state.authToken = snapshot.accessToken;
+      persistAuthToken(state.authToken);
+    }
+  } catch (error) {
+    pushNotice(`Authentification Cognito indisponible: ${(error as Error).message}`, 'warning');
+  } finally {
+    authView.isLoading = false;
   }
 }
 
@@ -128,6 +197,7 @@ function renderShell() {
     pageCount: summary.pageCount,
     fieldCount: summary.fieldCount,
     progress: getTodoProgress(state.todos),
+    auth: authView,
   });
 
   bindShellEvents();
@@ -162,6 +232,10 @@ function bindShellEvents() {
   const templateInput = document.querySelector<HTMLInputElement>('#template-file');
   const basePdfInput = document.querySelector<HTMLInputElement>('#basepdf-file');
   const inputsInput = document.querySelector<HTMLInputElement>('#inputs-file');
+  const authTokenInput = document.querySelector<HTMLInputElement>('#auth-token');
+  const templateNameInput = document.querySelector<HTMLInputElement>('#template-name');
+  const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
+  const accessPrincipalsInput = document.querySelector<HTMLTextAreaElement>('#access-principals');
 
   templateInput?.addEventListener('change', async () => {
     const file = templateInput.files?.[0];
@@ -187,6 +261,25 @@ function bindShellEvents() {
     const parsed = await readJsonFile(file);
     applyInputs(parsed);
     inputsInput.value = '';
+  });
+
+  authTokenInput?.addEventListener('input', () => {
+    state.authToken = authTokenInput.value.trim();
+    persistAuthToken(state.authToken);
+  });
+
+  templateNameInput?.addEventListener('input', () => {
+    state.templateName = templateNameInput.value.trim();
+    persistTemplateName(state.templateName);
+  });
+
+  remoteTemplateInput?.addEventListener('input', () => {
+    state.remoteTemplateId = remoteTemplateInput.value.trim();
+    persistRemoteTemplateId(state.remoteTemplateId);
+  });
+
+  accessPrincipalsInput?.addEventListener('input', () => {
+    // Stateless: only used when publishing/granting access.
   });
 
   const templateText = document.querySelector<HTMLTextAreaElement>('#template-json');
@@ -303,9 +396,39 @@ function getFormUi() {
 }
 
 async function handleAction(action: string) {
+  if (action === 'auth-signin') {
+    await signInWithCognito();
+    return;
+  }
+
+  if (action === 'auth-refresh') {
+    await refreshAuthSession();
+    return;
+  }
+
+  if (action === 'auth-signout') {
+    await signOutFromCognito();
+    return;
+  }
+
   if (action === 'save-local') {
     persistAll();
     pushNotice('Etat sauvegarde localement.', 'success');
+    return;
+  }
+
+  if (action === 'refresh-remote') {
+    await refreshRemoteTemplates();
+    return;
+  }
+
+  if (action === 'publish-template') {
+    await publishCurrentTemplate();
+    return;
+  }
+
+  if (action === 'load-remote-template') {
+    await loadPublishedTemplate();
     return;
   }
 
@@ -382,6 +505,57 @@ async function handleAction(action: string) {
   }
 }
 
+async function signInWithCognito() {
+  authView.isLoading = true;
+  renderShell();
+  await startSigninRedirect();
+}
+
+async function signOutFromCognito() {
+  await clearOidcSession();
+  authView.isAuthenticated = false;
+  authView.email = '';
+  authView.expiresAt = null;
+  authView.isLoading = false;
+  state.authToken = '';
+  persistAuthToken('');
+  renderShell();
+  startCognitoLogoutRedirect();
+}
+
+async function refreshAuthSession() {
+  authView.isLoading = true;
+  renderShell();
+
+  try {
+    const user = await getStoredAuthSession();
+    const snapshot = toAuthSnapshot(user);
+    authView.isAuthenticated = snapshot.isAuthenticated;
+    authView.email = snapshot.email;
+    authView.expiresAt = snapshot.expiresAt;
+    authView.isLoading = false;
+
+    state.authToken = snapshot.accessToken || '';
+    persistAuthToken(state.authToken);
+
+    if (!snapshot.isAuthenticated) {
+      pushNotice('Session expirée. Reconnecte-toi pour continuer.', 'warning');
+    } else {
+      pushNotice('Session Cognito rafraichie depuis le stockage local.', 'info');
+    }
+  } catch (error) {
+    authView.isLoading = false;
+    pushNotice(`Impossible de rafraichir la session: ${(error as Error).message}`, 'danger');
+  }
+
+  renderShell();
+  syncEditors();
+  refreshSummary();
+  refreshTodoPanel();
+  refreshNotices();
+  void mountUi();
+}
+
 function appendField(kind: FieldKind) {
   const designer = getDesignerUi();
   if (!designer) return;
@@ -407,12 +581,19 @@ function appendPage() {
   pushNotice('Page vide ajoutee.', 'success');
 }
 
-function applyTemplate(value: Template) {
+function applyTemplate(value: Template, preserveRemoteLink = false) {
   checkTemplate(value);
   state.template = cloneDeep(value);
   state.inputs = getInputFromTemplate(state.template);
   state.templateDraft = JSON.stringify(state.template, null, 2);
   state.inputsDraft = JSON.stringify(state.inputs, null, 2);
+
+  if (!preserveRemoteLink) {
+    state.remoteTemplateId = '';
+    state.remoteAccess = null;
+    persistRemoteTemplateId('');
+  }
+
   persistAll();
   syncEditors();
   refreshSummary();
@@ -482,6 +663,157 @@ function clearInputs() {
   pushNotice('Inputs reinitialises.', 'warning');
 }
 
+async function refreshRemoteTemplates() {
+  try {
+    const { templates } = await loadRemoteTemplates(state.authToken || undefined);
+    state.remoteTemplates = templates;
+    syncRemotePanels();
+    pushNotice(`${templates.length} template(s) distant(s) charge(s).`, 'info');
+  } catch (error) {
+    pushNotice(`Impossible de charger les templates distants: ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function publishCurrentTemplate() {
+  if (!state.authToken) {
+    pushNotice('Ajoute un jeton Cognito admin avant de publier.', 'warning');
+    return;
+  }
+
+  try {
+    const templateName = getTemplateNameValue() || state.templateName || `Template ${new Date().toISOString().slice(0, 10)}`;
+    const result = await saveRemoteTemplate(
+      {
+        id: state.remoteTemplateId || undefined,
+        name: templateName,
+        template: currentTemplate(),
+        status: 'published',
+      },
+      state.authToken,
+    );
+
+    state.remoteTemplateId = result.template.id;
+    state.templateName = templateName;
+    persistRemoteTemplateId(state.remoteTemplateId);
+    persistTemplateName(state.templateName);
+    syncAdminFields();
+
+    const principals = getAccessPrincipals();
+    if (principals.length > 0) {
+      await Promise.allSettled(principals.map((principal) => grantRemoteAccess({ templateId: result.template.id, principal }, state.authToken)));
+    }
+
+    await refreshRemoteTemplates();
+    pushNotice(`Template publie: ${result.template.id}`, 'success');
+  } catch (error) {
+    pushNotice(`Publication impossible: ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function loadPublishedTemplate() {
+  const templateId = getRemoteTemplateIdValue();
+  if (!templateId) {
+    pushNotice('Renseigne un ID de template publie.', 'warning');
+    return;
+  }
+
+  if (!state.authToken) {
+    pushNotice('Ajoute un jeton Cognito avant de charger un template publie.', 'warning');
+    return;
+  }
+
+  try {
+    const access = await checkRemoteAccess(templateId, state.authToken);
+    state.remoteAccess = access;
+    syncRemotePanels();
+
+    if (!access.allowed) {
+      pushNotice(`Acces refuse: ${access.reason}`, 'danger');
+      return;
+    }
+
+    const { template } = await loadRemoteTemplate(templateId, state.authToken);
+    applyTemplate(template.template, true);
+    state.templateName = template.name;
+    state.remoteTemplateId = template.id;
+    persistRemoteTemplateId(state.remoteTemplateId);
+    persistTemplateName(state.templateName);
+    syncAdminFields();
+    pushNotice(`Template publie charge: ${template.name}`, 'success');
+  } catch (error) {
+    pushNotice(`Chargement distant impossible: ${(error as Error).message}`, 'danger');
+  }
+}
+
+function getTemplateNameValue() {
+  return document.querySelector<HTMLInputElement>('#template-name')?.value.trim() || '';
+}
+
+function getRemoteTemplateIdValue() {
+  return document.querySelector<HTMLInputElement>('#remote-template-id')?.value.trim() || state.remoteTemplateId;
+}
+
+function getAccessPrincipals() {
+  const raw = document.querySelector<HTMLTextAreaElement>('#access-principals')?.value || '';
+  return Array.from(
+    new Set(
+      raw
+        .split(/[\n,;]/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function syncAdminFields() {
+  const authTokenInput = document.querySelector<HTMLInputElement>('#auth-token');
+  const templateNameInput = document.querySelector<HTMLInputElement>('#template-name');
+  const remoteTemplateInput = document.querySelector<HTMLInputElement>('#remote-template-id');
+
+  if (authTokenInput && authTokenInput.value !== state.authToken) {
+    authTokenInput.value = state.authToken;
+  }
+
+  if (templateNameInput && templateNameInput.value !== state.templateName) {
+    templateNameInput.value = state.templateName;
+  }
+
+  if (remoteTemplateInput && remoteTemplateInput.value !== state.remoteTemplateId) {
+    remoteTemplateInput.value = state.remoteTemplateId;
+  }
+}
+
+function syncRemotePanels() {
+  const remoteTemplateList = document.querySelector<HTMLDivElement>('#remote-template-list');
+  if (remoteTemplateList) {
+    remoteTemplateList.innerHTML = state.remoteTemplates.length
+      ? state.remoteTemplates
+          .map(
+            (template) => `
+              <div class="summary-row">
+                <strong>${escapeHtml(template.name)}</strong>
+                <span>${escapeHtml(template.id)}</span>
+              </div>
+            `,
+          )
+          .join('')
+      : '<p class="notice-empty">Aucun template publie pour le moment.</p>';
+  }
+
+  const accessStatus = document.querySelector<HTMLDivElement>('#access-status');
+  if (accessStatus) {
+    if (!state.remoteAccess) {
+      accessStatus.innerHTML = '<p class="notice-empty">Charge un template pour verifier l’accès Cognito.</p>';
+    } else {
+      accessStatus.innerHTML = `
+        <div class="summary-row"><strong>Autorise</strong><span>${state.remoteAccess.allowed ? 'oui' : 'non'}</span></div>
+        <div class="summary-row"><strong>Motif</strong><span>${escapeHtml(state.remoteAccess.reason)}</span></div>
+        <div class="summary-row"><strong>Principal</strong><span>${escapeHtml(state.remoteAccess.principal || '-')}</span></div>
+      `;
+    }
+  }
+}
+
 async function exportPdf(fillable: boolean) {
   const template = currentTemplate();
   const inputs = currentInputs(template);
@@ -498,6 +830,22 @@ async function exportPdf(fillable: boolean) {
 
   downloadBinary(pdf, fillable ? 'pdf-interactif.pdf' : 'pdf-rempli.pdf');
   pushNotice(fillable ? 'PDF interactif exporte.' : 'PDF final exporte.', 'success');
+
+  if (!fillable && state.remoteTemplateId && state.authToken) {
+    try {
+      const response = await consumeRemoteAccess(state.remoteTemplateId, state.authToken);
+      state.remoteAccess = {
+        allowed: false,
+        reason: 'consumed',
+        principal: response.access.principal,
+        access: response.access,
+      };
+      syncRemotePanels();
+      pushNotice('Acces consommé après export du PDF final.', 'info');
+    } catch (error) {
+      pushNotice(`Impossible de consommer l’accès: ${(error as Error).message}`, 'warning');
+    }
+  }
 }
 
 async function previewPdf() {
@@ -601,6 +949,8 @@ function setStatus(message: string) {
 function syncEditors() {
   syncTemplateEditor();
   syncInputsEditor();
+  syncAdminFields();
+  syncRemotePanels();
 }
 
 function syncTemplateEditor() {
@@ -618,6 +968,9 @@ function persistAll() {
   persistInputs(state.inputs);
   persistTodos(state.todos);
   persistLang(state.lang);
+  persistAuthToken(state.authToken);
+  persistRemoteTemplateId(state.remoteTemplateId);
+  persistTemplateName(state.templateName);
 }
 
 function markTodo(todoId: number, done: boolean) {
@@ -626,4 +979,4 @@ function markTodo(todoId: number, done: boolean) {
   refreshTodoPanel();
 }
 
-startup();
+void startup();

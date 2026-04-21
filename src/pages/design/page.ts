@@ -5,8 +5,8 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
     <section class="stack gap-lg">
       <div>
         <p class="eyebrow">Page 1</p>
-        <h2>Créer le template</h2>
-        <p class="muted">Importe ton PDF de base ou un template JSON, ajoute les champs, puis exporte un PDF interactif.</p>
+        <h2>Administration des templates</h2>
+        <p class="muted">Crée ton template, valide-le, publie-le sur Vercel puis autorise les utilisateurs Cognito à le remplir une fois.</p>
       </div>
 
       <div class="section-card">
@@ -15,6 +15,8 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
+          <button class="action-button" data-action="publish-template">Publier Vercel</button>
+          <button class="action-button" data-action="refresh-remote">Actualiser</button>
           <button class="action-button" data-action="template-json">Template JSON</button>
           <button class="action-button" data-action="load-contract">Contrat</button>
           <button class="action-button" data-action="load-invoice">Facture</button>
@@ -25,18 +27,32 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Importer un fichier</span>
+          <span>Publication et accès</span>
         </div>
-        <div class="import-stack">
-          <label class="file-button">
-            Importer un template JSON
-            <input type="file" id="template-file" accept="application/json" hidden />
+        <div class="stack gap-md">
+          <label class="field-stack">
+            <span>Nom du template</span>
+            <input id="template-name" type="text" placeholder="Contrat signé par les clients" />
           </label>
-          <label class="file-button">
-            Importer mon PDF
-            <input type="file" id="basepdf-file" accept="application/pdf" hidden />
+          <label class="field-stack">
+            <span>Jeton Cognito</span>
+            <input id="auth-token" type="password" placeholder="Colle ici le token Cognito" />
           </label>
-          <p class="card-note">Le PDF importé devient la base visuelle du template sur la page Design.</p>
+          <label class="field-stack">
+            <span>Accès à donner</span>
+            <textarea id="access-principals" placeholder="email1@domaine.fr\nuser-sub-123"></textarea>
+          </label>
+          <div class="import-stack">
+            <label class="file-button">
+              Importer un template JSON
+              <input type="file" id="template-file" accept="application/json" hidden />
+            </label>
+            <label class="file-button">
+              Importer mon PDF
+              <input type="file" id="basepdf-file" accept="application/pdf" hidden />
+            </label>
+          </div>
+          <p class="card-note">Le PDF importé devient la base visuelle du template. La publication Vercel enregistre le template en base et prépare l’accès Cognito.</p>
         </div>
       </div>
 
@@ -79,6 +95,14 @@ export function renderDesignRight() {
           <span class="subtle">live</span>
         </div>
         <div id="template-summary" class="summary-stack"></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <span>Templates publiés</span>
+          <span class="subtle">Vercel</span>
+        </div>
+        <div id="remote-template-list" class="summary-stack"></div>
       </div>
 
       <div class="section-card">

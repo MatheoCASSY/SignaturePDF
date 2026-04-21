@@ -12,11 +12,16 @@
     "vercel:pull": "npx vercel pull --yes --environment=production",
     "vercel:build:prebuilt": "npx vercel build --prod",
     "vercel:deploy:prebuilt": "npx vercel deploy --prebuilt --prod",
-    "vercel:prebuilt": "npm run vercel:pull && npm run vercel:build:prebuilt && npm run vercel:deploy:prebuilt"
+    "vercel:prebuilt": "npm run vercel:pull && npm run vercel:build:prebuilt && npm run vercel:deploy:prebuilt",
+    "vercel:env:sync": "powershell -ExecutionPolicy Bypass -File ./scripts/vercel-env-sync.ps1"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1033.0",
     "@pdfme/common": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",
+    "jose": "^6.2.2",
+    "oidc-client-ts": "^3.5.0",
+    "react-oidc-context": "^3.3.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.9"
   }

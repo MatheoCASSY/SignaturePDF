@@ -1,7 +1,18 @@
-import type { RouteName } from '../types/app';
+import type { AuthViewState, RouteName } from '../types/app';
 
-export function renderHeader(route: RouteName, pageCount: number, fieldCount: number) {
+export function renderHeader(route: RouteName, pageCount: number, fieldCount: number, auth: AuthViewState) {
   const routeLabel = route === 'design' ? 'Designer le PDF' : 'Remplir le PDF';
+  const authLabel = auth.isLoading ? 'Connexion...' : auth.isAuthenticated ? auth.email || 'Connecte' : 'Non connecte';
+  const expiresAtLabel =
+    auth.isAuthenticated && auth.expiresAt
+      ? `Expire ${new Date(auth.expiresAt * 1000).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}`
+      : auth.isAuthenticated
+        ? 'Expiration inconnue'
+        : 'Pas de session';
+  const authAction = auth.isAuthenticated
+    ? '<button class="ghost-button" data-action="auth-refresh">Rafraichir session</button><button class="ghost-button" data-action="auth-signout">Se deconnecter</button>'
+    : '<button class="ghost-button" data-action="auth-signin">Se connecter</button>';
+
   return `
     <header class="topbar panel">
       <div class="brand">
@@ -30,6 +41,9 @@ export function renderHeader(route: RouteName, pageCount: number, fieldCount: nu
         <div class="pill">${routeLabel}</div>
         <div class="pill pill-soft">${pageCount} page${pageCount > 1 ? 's' : ''}</div>
         <div class="pill pill-soft">${fieldCount} champ${fieldCount > 1 ? 's' : ''}</div>
+        <div class="pill">${authLabel}</div>
+        <div class="pill pill-soft">${expiresAtLabel}</div>
+        ${authAction}
       </div>
     </header>
   `;

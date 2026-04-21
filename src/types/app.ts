@@ -10,6 +10,29 @@ export type NoticeItem = {
   tone: NoticeTone;
 };
 
+export type RemoteTemplateSummary = {
+  id: string;
+  name: string;
+  status: 'draft' | 'published';
+  updatedAt: string;
+  publishedAt: string | null;
+};
+
+export type RemoteAccessStatus = {
+  allowed: boolean;
+  reason: string;
+  principal?: string | null;
+  isAdmin?: boolean;
+  access?: {
+    templateId: string;
+    principal: string;
+    grantedAt: string;
+    consumedAt: string | null;
+    expiresAt: string | null;
+  } | null;
+  template?: RemoteTemplateSummary;
+};
+
 export type TodoItem = {
   id: number;
   title: string;
@@ -43,4 +66,16 @@ export type AppState = {
   todos: TodoItem[];
   templateDraft: string;
   inputsDraft: string;
+  authToken: string;
+  remoteTemplateId: string;
+  templateName: string;
+  remoteTemplates: RemoteTemplateSummary[];
+  remoteAccess: RemoteAccessStatus | null;
+};
+
+export type AuthViewState = {
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  email: string;
+  expiresAt: number | null;
 };

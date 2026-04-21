@@ -4,7 +4,7 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
       <div>
         <p class="eyebrow">Page 2</p>
         <h2>Remplir le document</h2>
-        <p class="muted">Charge un template existant, complète les champs, signe en ligne, puis télécharge le PDF final.</p>
+        <p class="muted">Charge un template publié, complète les champs, signe en ligne, puis télécharge le PDF final. L’accès peut être limité à un user Cognito précis et n’être consommable qu’une seule fois.</p>
       </div>
 
       <div class="section-card accent-card">
@@ -25,6 +25,7 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="final-pdf">PDF final</button>
+          <button class="action-button" data-action="load-remote-template">Ouvrir publié</button>
           <button class="action-button" data-action="preview-pdf">Apercu</button>
           <button class="action-button" data-action="fill-example">Remplir exemple</button>
           <button class="action-button" data-action="clear-inputs">Vider</button>
@@ -35,18 +36,28 @@ export function renderRemplirLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Importer un fichier</span>
+          <span>Accès et publication</span>
         </div>
-        <div class="import-stack">
-          <label class="file-button">
-            Importer un template JSON
-            <input type="file" id="template-file" accept="application/json" hidden />
+        <div class="stack gap-md">
+          <label class="field-stack">
+            <span>ID du template publié</span>
+            <input id="remote-template-id" type="text" placeholder="uuid du template publié" />
           </label>
-          <label class="file-button">
-            Importer des inputs JSON
-            <input type="file" id="inputs-file" accept="application/json" hidden />
+          <label class="field-stack">
+            <span>Jeton Cognito</span>
+            <input id="auth-token" type="password" placeholder="Colle ici ton token Cognito" />
           </label>
-          <p class="card-note">Si tu veux repartir d’un PDF de base, retourne sur la page Design et réimporte ton document.</p>
+          <div class="import-stack">
+            <label class="file-button">
+              Importer un template JSON
+              <input type="file" id="template-file" accept="application/json" hidden />
+            </label>
+            <label class="file-button">
+              Importer des inputs JSON
+              <input type="file" id="inputs-file" accept="application/json" hidden />
+            </label>
+          </div>
+          <p class="card-note">Si tu veux repartir d’un PDF de base, retourne sur la page Design et réimporte ton document. Le token Cognito sert à vérifier l’accès au template publié.</p>
         </div>
       </div>
 
@@ -70,6 +81,14 @@ export function renderRemplirRight() {
           <span class="subtle">live</span>
         </div>
         <div id="field-summary" class="summary-stack"></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <span>Accès Cognito</span>
+          <span class="subtle">contrôle</span>
+        </div>
+        <div id="access-status" class="summary-stack"></div>
       </div>
 
       <div class="section-card">

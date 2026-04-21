@@ -70,3 +70,27 @@ export function persistTodos(todos: TodoItem[]) {
 export function persistLang(lang: string) {
   localStorage.setItem(STORAGE_KEYS.lang, lang);
 }
+
+export function loadAuthToken() {
+  return localStorage.getItem(STORAGE_KEYS.authToken) || '';
+}
+
+export function persistAuthToken(token: string) {
+  localStorage.setItem(STORAGE_KEYS.authToken, token);
+}
+
+export function loadRemoteTemplateId() {
+  return localStorage.getItem(STORAGE_KEYS.remoteTemplateId) || '';
+}
+
+export function persistRemoteTemplateId(templateId: string) {
+  localStorage.setItem(STORAGE_KEYS.remoteTemplateId, templateId);
+}
+
+export function loadTemplateName() {
+  return localStorage.getItem(STORAGE_KEYS.templateName) || '';
+}
+
+export function persistTemplateName(templateName: string) {
+  localStorage.setItem(STORAGE_KEYS.templateName, templateName);
+}

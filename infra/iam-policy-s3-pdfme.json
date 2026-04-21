@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowListBucketPrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::pdfme-235500188147-eu-west-1-an",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "templates/*",
+            "access/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "AllowTemplateAndAccessObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::pdfme-235500188147-eu-west-1-an/templates/*",
+        "arn:aws:s3:::pdfme-235500188147-eu-west-1-an/access/*"
+      ]
+    }
+  ]
+}

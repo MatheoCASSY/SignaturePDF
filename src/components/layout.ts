@@ -1,13 +1,14 @@
 import { renderHeader } from './header';
 import { renderDesignLeft, renderDesignRight } from '../pages/design/page';
 import { renderRemplirLeft, renderRemplirRight } from '../pages/remplir/page';
-import type { RouteName } from '../types/app';
+import type { AuthViewState, RouteName } from '../types/app';
 
 type LayoutProps = {
   route: RouteName;
   pageCount: number;
   fieldCount: number;
   progress: { done: number; total: number };
+  auth: AuthViewState;
 };
 
 export function renderAppShell(props: LayoutProps) {
@@ -25,7 +26,7 @@ export function renderAppShell(props: LayoutProps) {
       <div class="orb orb-one"></div>
       <div class="orb orb-two"></div>
 
-      ${renderHeader(props.route, props.pageCount, props.fieldCount)}
+      ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
 
       <main class="workspace ${props.route === 'design' ? 'workspace-design' : 'workspace-fill'}">
         <aside class="panel sidebar left-sidebar">${leftSidebar}</aside>
