@@ -18,6 +18,18 @@ function hasSigninCallbackParams() {
   return query.has('code') && query.has('state');
 }
 
+function readSigninErrorParams() {
+  const query = new URLSearchParams(window.location.search);
+  const error = query.get('error');
+  if (!error) return null;
+
+  const description = query.get('error_description') || '';
+  return {
+    error,
+    description,
+  };
+}
+
 function normalizeReturnTo(value: unknown) {
   if (typeof value !== 'string') return '/login';
   if (!value.startsWith('/')) return '/login';
@@ -35,6 +47,11 @@ function isAdminProfile(profile: Record<string, unknown> | undefined) {
 }
 
 export async function hydrateAuthSession() {
+  const oauthError = readSigninErrorParams();
+  if (oauthError) {
+    throw new Error(`OAuth Cognito: ${oauthError.error}${oauthError.description ? ` (${oauthError.description})` : ''}`);
+  }
+
   if (hasSigninCallbackParams()) {
     const user = await oidcManager.signinCallback();
     const target = normalizeReturnTo(user.state?.returnTo);

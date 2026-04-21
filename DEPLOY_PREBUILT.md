@@ -58,7 +58,7 @@ Variables frontend OIDC (Vite) pour le login Cognito:
 - `VITE_COGNITO_LOGOUT_URI` (souvent la meme URL que le redirect)
 - `VITE_COGNITO_DOMAIN` (domaine Hosted UI Cognito, ex: `https://<ton-domaine>.auth.eu-west-1.amazoncognito.com`)
 - `VITE_COGNITO_ADMIN_GROUP` si tu veux personnaliser le groupe admin détecté côté client
-- `VITE_COGNITO_SCOPE` (ex: `aws.cognito.signin.user.admin openid profile`)
+- `VITE_COGNITO_SCOPE` (recommandé: `openid profile email`)
 
 Comportement:
 

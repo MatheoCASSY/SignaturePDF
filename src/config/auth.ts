@@ -11,7 +11,7 @@ export const cognitoAuthConfig = {
   cognitoDomain: import.meta.env.VITE_COGNITO_DOMAIN || DEFAULT_COGNITO_DOMAIN,
   adminGroup: import.meta.env.VITE_COGNITO_ADMIN_GROUP || 'pdfme-admins',
   responseType: 'code',
-  scope: import.meta.env.VITE_COGNITO_SCOPE || 'aws.cognito.signin.user.admin openid profile',
+  scope: import.meta.env.VITE_COGNITO_SCOPE || 'openid profile email',
 };
 
 export function buildCognitoLogoutUrl() {
