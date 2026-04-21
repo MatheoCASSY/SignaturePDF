@@ -48,7 +48,7 @@ Variables attendues dans l'environnement Vercel:
 - `COGNITO_REGION`
 - `COGNITO_USER_POOL_ID`
 - `COGNITO_CLIENT_ID`
-- `COGNITO_ADMIN_GROUP` si tu utilises un groupe dédié pour l'administration
+- `COGNITO_ADMIN_GROUP` si tu utilises un groupe dédié pour l'administration, par exemple `admins`
 
 Variables frontend OIDC (Vite) pour le login Cognito:
 
@@ -57,7 +57,7 @@ Variables frontend OIDC (Vite) pour le login Cognito:
 - `VITE_COGNITO_REDIRECT_URIS` (ex: `https://nexsite.fr,https://pdfme.nexsite.fr`)
 - `VITE_COGNITO_LOGOUT_URIS` (souvent les memes URLs que le redirect)
 - `VITE_COGNITO_DOMAIN` (domaine Hosted UI Cognito, ex: `https://<ton-domaine>.auth.eu-west-1.amazoncognito.com`)
-- `VITE_COGNITO_ADMIN_GROUP` si tu veux personnaliser le groupe admin détecté côté client
+- `VITE_COGNITO_ADMIN_GROUP` si tu veux personnaliser le groupe admin détecté côté client, par exemple `admins`
 - `VITE_COGNITO_SCOPE` (recommandé: `openid profile email`)
 
 Comportement:

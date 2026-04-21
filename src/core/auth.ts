@@ -69,7 +69,7 @@ function isAdminProfile(profile: Record<string, unknown> | undefined) {
 
   const groups = Array.isArray(profile['cognito:groups']) ? profile['cognito:groups'].map((value) => String(value).toLowerCase()) : [];
   const customRole = String(profile['custom:role'] || '').toLowerCase();
-  const adminGroup = String(cognitoAuthConfig.adminGroup || 'pdfme-admins').toLowerCase();
+  const adminGroup = String(cognitoAuthConfig.adminGroup || 'admins').toLowerCase();
 
   return groups.includes(adminGroup) || customRole === 'admin' || customRole === 'administrator';
 }
