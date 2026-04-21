@@ -15,6 +15,7 @@ import {
   persistTodos,
 } from './core/storage';
 import { summarizeTemplate } from './core/template';
+import { fillTemplateDefaults } from './core/template';
 import { renderAppShell } from './components/layout';
 import { getTodoProgress, renderTodoItems } from './components/todo';
 import { downloadBinary, downloadJson, readFileAsDataUrl, readJsonFile } from './utils/files';
@@ -448,7 +449,7 @@ function applyJsonFromEditors() {
 
 function fillWithExampleData() {
   const template = currentTemplate();
-  state.inputs = getInputFromTemplate(template).map((row) => ({ ...row }));
+  state.inputs = fillTemplateDefaults(template, getInputFromTemplate(template));
 
   state.inputs = state.inputs.map((row) => {
     const output = { ...row };
@@ -473,7 +474,7 @@ function fillWithExampleData() {
 }
 
 function clearInputs() {
-  state.inputs = getInputFromTemplate(currentTemplate());
+  state.inputs = fillTemplateDefaults(currentTemplate(), getInputFromTemplate(currentTemplate()));
   state.inputsDraft = JSON.stringify(state.inputs, null, 2);
   persistInputs(state.inputs);
   syncInputsEditor();
@@ -525,14 +526,14 @@ function currentInputs(template: Template) {
   const formUi = getFormUi();
   if (formUi) {
     const inputs = formUi.getInputs();
-    return inputs && inputs.length > 0 ? inputs : getInputFromTemplate(template);
+    return inputs && inputs.length > 0 ? fillTemplateDefaults(template, inputs) : fillTemplateDefaults(template, getInputFromTemplate(template));
   }
 
-  return state.inputs.length > 0 ? state.inputs : getInputFromTemplate(template);
+  return state.inputs.length > 0 ? fillTemplateDefaults(template, state.inputs) : fillTemplateDefaults(template, getInputFromTemplate(template));
 }
 
 function ensureInputs(template: Template, inputs: Record<string, string>[]) {
-  return inputs.length > 0 ? inputs : getInputFromTemplate(template);
+  return inputs.length > 0 ? fillTemplateDefaults(template, inputs) : fillTemplateDefaults(template, getInputFromTemplate(template));
 }
 
 function refreshSummary() {

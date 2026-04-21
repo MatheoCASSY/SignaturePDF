@@ -4,14 +4,14 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
-        <p class="eyebrow">Design</p>
-        <h2>Template et champs</h2>
-        <p class="muted">Charge un PDF de fond, ajoute des champs et exporte un PDF interactif pour le remplissage.</p>
+        <p class="eyebrow">Page 1</p>
+        <h2>Créer le template</h2>
+        <p class="muted">Importe ton PDF de base ou un template JSON, ajoute les champs, puis exporte un PDF interactif.</p>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Actions rapides</span>
+          <span>Démarrage rapide</span>
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
@@ -25,24 +25,25 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Importer</span>
+          <span>Importer un fichier</span>
         </div>
         <div class="import-stack">
           <label class="file-button">
-            Charger un template JSON
+            Importer un template JSON
             <input type="file" id="template-file" accept="application/json" hidden />
           </label>
           <label class="file-button">
-            Charger un PDF de fond
+            Importer mon PDF
             <input type="file" id="basepdf-file" accept="application/pdf" hidden />
           </label>
+          <p class="card-note">Le PDF importé devient la base visuelle du template sur la page Design.</p>
         </div>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Palette de champs</span>
-          <span class="subtle">ajout direct</span>
+          <span>Ajouter des champs</span>
+          <span class="subtle">clic direct</span>
         </div>
         <div class="field-grid">
           ${quickFieldLibrary
@@ -60,7 +61,7 @@ export function renderDesignLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Plan IA</span>
+          <span>Suivi</span>
           <span class="subtle">${progress.done}/${progress.total}</span>
         </div>
         <div id="todo-list" class="todo-list"></div>
@@ -74,7 +75,7 @@ export function renderDesignRight() {
     <section class="stack gap-lg">
       <div class="section-card">
         <div class="section-card-head">
-          <span>Resume template</span>
+          <span>Résumé du template</span>
           <span class="subtle">live</span>
         </div>
         <div id="template-summary" class="summary-stack"></div>
@@ -82,10 +83,10 @@ export function renderDesignRight() {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Template JSON</span>
+          <span>JSON du template</span>
           <div class="mini-actions">
-            <button class="mini-button" data-action="download-template">Telecharger</button>
-            <button class="mini-button" data-action="reset-template">Reinitialiser</button>
+            <button class="mini-button" data-action="download-template">Télécharger</button>
+            <button class="mini-button" data-action="reset-template">Réinitialiser</button>
           </div>
         </div>
         <textarea id="template-json" spellcheck="false"></textarea>

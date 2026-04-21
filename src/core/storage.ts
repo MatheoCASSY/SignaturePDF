@@ -4,6 +4,7 @@ import { sampleTemplates } from '../data/templates';
 import { defaultTodos } from '../data/todos';
 import { parseRoute } from '../utils/routing';
 import type { RouteName, TodoItem } from '../types/app';
+import { fillTemplateDefaults } from './template';
 
 export function loadRoute(): RouteName {
   return parseRoute(location.pathname);
@@ -28,16 +29,16 @@ export function loadTemplate(): Template {
 
 export function loadInputs(template: Template): Record<string, string>[] {
   const raw = localStorage.getItem(STORAGE_KEYS.inputs);
-  if (!raw) return getInputFromTemplate(template);
+  if (!raw) return fillTemplateDefaults(template, getInputFromTemplate(template));
 
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed as Record<string, string>[];
+    if (Array.isArray(parsed)) return fillTemplateDefaults(template, parsed as Record<string, string>[]);
   } catch {
     // Ignore invalid local storage state.
   }
 
-  return getInputFromTemplate(template);
+  return fillTemplateDefaults(template, getInputFromTemplate(template));
 }
 
 export function loadTodos(): TodoItem[] {
