@@ -36,6 +36,34 @@ function normalizeReturnTo(value: unknown) {
   return value;
 }
 
+function decodeJwtPayload(token: string) {
+  if (!token) return null;
+
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+
+  try {
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, '=');
+    const json = atob(padded);
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function mergeClaims(user: User | null) {
+  const profile = (user?.profile || undefined) as Record<string, unknown> | undefined;
+  const idTokenClaims = decodeJwtPayload(user?.id_token || '');
+  const accessTokenClaims = decodeJwtPayload(user?.access_token || '');
+
+  return {
+    ...profile,
+    ...idTokenClaims,
+    ...accessTokenClaims,
+  } as Record<string, unknown> | undefined;
+}
+
 function isAdminProfile(profile: Record<string, unknown> | undefined) {
   if (!profile) return false;
 
@@ -83,7 +111,7 @@ export function startCognitoLogoutRedirect() {
 }
 
 export function toAuthSnapshot(user: User | null) {
-  const profile = (user?.profile || undefined) as Record<string, unknown> | undefined;
+  const profile = mergeClaims(user);
   return {
     isAuthenticated: Boolean(user && !user.expired),
     isAdmin: isAdminProfile(profile),
