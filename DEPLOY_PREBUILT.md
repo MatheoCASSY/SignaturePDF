@@ -54,8 +54,8 @@ Variables frontend OIDC (Vite) pour le login Cognito:
 
 - `VITE_COGNITO_AUTHORITY` (issuer user pool, ex: `https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_e3giVfjQy`)
 - `VITE_COGNITO_CLIENT_ID` (ex: `6lsst47elspoa8elmdbo8dear9`)
-- `VITE_COGNITO_REDIRECT_URI` (ex: `https://nexsite.fr`)
-- `VITE_COGNITO_LOGOUT_URI` (souvent la meme URL que le redirect)
+- `VITE_COGNITO_REDIRECT_URIS` (ex: `https://nexsite.fr,https://pdfme.nexsite.fr`)
+- `VITE_COGNITO_LOGOUT_URIS` (souvent les memes URLs que le redirect)
 - `VITE_COGNITO_DOMAIN` (domaine Hosted UI Cognito, ex: `https://<ton-domaine>.auth.eu-west-1.amazoncognito.com`)
 - `VITE_COGNITO_ADMIN_GROUP` si tu veux personnaliser le groupe admin détecté côté client
 - `VITE_COGNITO_SCOPE` (recommandé: `openid profile email`)
