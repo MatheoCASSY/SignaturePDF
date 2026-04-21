@@ -1,6 +1,4 @@
 import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template } from '@pdfme/common';
-import { generate } from '@pdfme/generator';
-import { Designer, Form } from '@pdfme/ui';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -46,12 +44,56 @@ state.inputs = loadInputs(state.template);
 state.templateDraft = JSON.stringify(state.template, null, 2);
 state.inputsDraft = JSON.stringify(state.inputs, null, 2);
 
-let activeUi: Designer | Form | null = null;
+type DesignerLike = {
+  destroy: () => void;
+  getTemplate: () => Template;
+  updateTemplate: (template: Template) => void;
+  getPageCursor?: () => number;
+  onSaveTemplate: (callback: (template: Template) => void) => void;
+  onChangeTemplate: (callback: (template: Template) => void) => void;
+  onPageChange: (callback: (detail: { currentPage: number; totalPages: number }) => void) => void;
+};
+
+type FormLike = {
+  destroy: () => void;
+  getTemplate: () => Template;
+  getInputs: () => Record<string, string>[];
+  onChangeInput: (callback: (detail: { index: number; name: string; value: string }) => void) => void;
+  onPageChange: (callback: (detail: { currentPage: number; totalPages: number }) => void) => void;
+};
+
+let activeUi: DesignerLike | FormLike | null = null;
+let activeUiKind: RouteName | null = null;
+let mountRequestId = 0;
+let uiModulePromise: Promise<{ Designer: new (...args: any[]) => unknown; Form: new (...args: any[]) => unknown }> | null = null;
+let generatorModulePromise: Promise<{ generate: (...args: any[]) => Promise<any> }> | null = null;
+
+const PDFME_UI_CDN_URL = 'https://esm.sh/@pdfme/ui@6.0.6?bundle';
+const PDFME_GENERATOR_CDN_URL = 'https://esm.sh/@pdfme/generator@6.0.6?bundle';
+
+function loadUiModule() {
+  if (!uiModulePromise) {
+    uiModulePromise = import(/* @vite-ignore */ PDFME_UI_CDN_URL).then((module) => ({
+      Designer: module.Designer,
+      Form: module.Form,
+    }));
+  }
+  return uiModulePromise;
+}
+
+function loadGeneratorModule() {
+  if (!generatorModulePromise) {
+    generatorModulePromise = import(/* @vite-ignore */ PDFME_GENERATOR_CDN_URL).then((module) => ({
+      generate: module.generate,
+    }));
+  }
+  return generatorModulePromise;
+}
 
 function startup() {
   ensureRoute();
   renderShell();
-  mountUi();
+  void mountUi();
   syncEditors();
   refreshSummary();
   refreshTodoPanel();
@@ -70,7 +112,7 @@ function onLocationChange() {
   if (nextRoute !== state.route) {
     state.route = nextRoute;
     renderShell();
-    mountUi();
+    void mountUi();
     syncEditors();
     refreshSummary();
     refreshTodoPanel();
@@ -163,21 +205,28 @@ function navigateTo(route: RouteName) {
   state.route = route;
   history.pushState({}, '', routePath(route));
   renderShell();
-  mountUi();
+  void mountUi();
   syncEditors();
   refreshSummary();
   refreshTodoPanel();
   refreshNotices();
 }
 
-function mountUi() {
+async function mountUi() {
+  const requestId = ++mountRequestId;
   const mount = document.querySelector<HTMLDivElement>('#pdfme-mount');
   if (!mount) return;
 
   if (activeUi) {
     activeUi.destroy();
     activeUi = null;
+    activeUiKind = null;
   }
+
+  setStatus('Chargement de l interface PDF...');
+
+  const { Designer, Form } = await loadUiModule();
+  if (requestId !== mountRequestId) return;
 
   const commonOptions = {
     lang: state.lang,
@@ -190,7 +239,7 @@ function mountUi() {
       template: state.template,
       options: commonOptions,
       plugins: uiPlugins,
-    });
+    }) as unknown as DesignerLike;
 
     designer.onSaveTemplate((template) => {
       state.template = cloneDeep(template);
@@ -214,6 +263,7 @@ function mountUi() {
     });
 
     activeUi = designer;
+    activeUiKind = 'design';
     return;
   }
 
@@ -223,7 +273,7 @@ function mountUi() {
     inputs: ensureInputs(state.template, state.inputs),
     options: commonOptions,
     plugins: uiPlugins,
-  });
+  }) as unknown as FormLike;
 
   form.onChangeInput(({ index, name, value }) => {
     if (!state.inputs[index]) state.inputs[index] = {};
@@ -238,6 +288,17 @@ function mountUi() {
   });
 
   activeUi = form;
+  activeUiKind = 'remplir';
+}
+
+function getDesignerUi() {
+  if (state.route !== 'design' || activeUiKind !== 'design' || !activeUi) return null;
+  return activeUi as DesignerLike;
+}
+
+function getFormUi() {
+  if (state.route !== 'remplir' || activeUiKind !== 'remplir' || !activeUi) return null;
+  return activeUi as FormLike;
 }
 
 async function handleAction(action: string) {
@@ -321,8 +382,9 @@ async function handleAction(action: string) {
 }
 
 function appendField(kind: FieldKind) {
-  if (state.route !== 'design' || !(activeUi instanceof Designer)) return;
-  state.template = appendFieldFromDesigner(activeUi, kind);
+  const designer = getDesignerUi();
+  if (!designer) return;
+  state.template = appendFieldFromDesigner(designer, kind);
   state.templateDraft = JSON.stringify(state.template, null, 2);
   persistTemplate(state.template);
   syncTemplateEditor();
@@ -331,10 +393,11 @@ function appendField(kind: FieldKind) {
 }
 
 function appendPage() {
-  if (state.route !== 'design' || !(activeUi instanceof Designer)) return;
-  const template = cloneDeep(activeUi.getTemplate());
+  const designer = getDesignerUi();
+  if (!designer) return;
+  const template = cloneDeep(designer.getTemplate());
   template.schemas.push([]);
-  activeUi.updateTemplate(template);
+  designer.updateTemplate(template);
   state.template = template;
   state.templateDraft = JSON.stringify(state.template, null, 2);
   persistTemplate(state.template);
@@ -352,7 +415,7 @@ function applyTemplate(value: Template) {
   persistAll();
   syncEditors();
   refreshSummary();
-  mountUi();
+  void mountUi();
   pushNotice('Template applique.', 'success');
 }
 
@@ -364,7 +427,7 @@ function applyInputs(value: unknown) {
   state.inputsDraft = JSON.stringify(state.inputs, null, 2);
   persistInputs(state.inputs);
   syncInputsEditor();
-  mountUi();
+  void mountUi();
   pushNotice('Inputs appliques.', 'success');
 }
 
@@ -405,7 +468,7 @@ function fillWithExampleData() {
   state.inputsDraft = JSON.stringify(state.inputs, null, 2);
   persistInputs(state.inputs);
   syncInputsEditor();
-  mountUi();
+  void mountUi();
   pushNotice('Donnees d exemple injectees.', 'success');
 }
 
@@ -414,13 +477,14 @@ function clearInputs() {
   state.inputsDraft = JSON.stringify(state.inputs, null, 2);
   persistInputs(state.inputs);
   syncInputsEditor();
-  mountUi();
+  void mountUi();
   pushNotice('Inputs reinitialises.', 'warning');
 }
 
 async function exportPdf(fillable: boolean) {
   const template = currentTemplate();
   const inputs = currentInputs(template);
+  const { generate } = await loadGeneratorModule();
 
   const pdf = fillable
     ? await generateFillablePdf(template, inputs, uiPlugins as unknown as Record<string, unknown>)
@@ -438,6 +502,7 @@ async function exportPdf(fillable: boolean) {
 async function previewPdf() {
   const template = currentTemplate();
   const inputs = currentInputs(template);
+  const { generate } = await loadGeneratorModule();
   const pdf = await generate({
     template,
     inputs,
@@ -457,8 +522,9 @@ function currentTemplate() {
 }
 
 function currentInputs(template: Template) {
-  if (state.route === 'remplir' && activeUi instanceof Form) {
-    const inputs = activeUi.getInputs();
+  const formUi = getFormUi();
+  if (formUi) {
+    const inputs = formUi.getInputs();
     return inputs && inputs.length > 0 ? inputs : getInputFromTemplate(template);
   }
 

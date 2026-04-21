@@ -1,7 +1,12 @@
 import type { Schema, Template } from '@pdfme/common';
-import type { Designer } from '@pdfme/ui';
 import type { FieldKind } from '../types/app';
 import { computeNextPosition } from './template';
+
+type DesignerLike = {
+  getTemplate: () => Template;
+  updateTemplate: (template: Template) => void;
+  getPageCursor?: () => number;
+};
 
 export function appendFieldToTemplate(template: Template, kind: FieldKind, pageIndex: number) {
   const nextTemplate = structuredClone(template);
@@ -83,7 +88,7 @@ export function appendFieldToTemplate(template: Template, kind: FieldKind, pageI
   return nextTemplate;
 }
 
-export function appendFieldFromDesigner(designer: Designer, kind: FieldKind) {
+export function appendFieldFromDesigner(designer: DesignerLike, kind: FieldKind) {
   const template = structuredClone(designer.getTemplate());
   const pageIndex = designer.getPageCursor?.() ?? 0;
   const updated = appendFieldToTemplate(template, kind, pageIndex);
