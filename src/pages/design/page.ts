@@ -6,7 +6,7 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
       <div>
         <p class="eyebrow">Page 1</p>
         <h2>Administration des templates</h2>
-        <p class="muted">Crée le template, publie-le dans S3, puis donne un accès à un ou plusieurs users Cognito avec le nombre d’utilisations voulu.</p>
+        <p class="muted">Prépare le template, publie dans S3 et attribue les accès de signature.</p>
       </div>
 
       <div class="section-card">

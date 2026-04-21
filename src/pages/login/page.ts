@@ -14,8 +14,8 @@ export function renderLoginPage(auth: AuthViewState) {
       <section class="login-hero panel">
         <div class="login-copy">
           <p class="eyebrow">Page 1</p>
-          <h2>Accède à ton espace documentaire</h2>
-          <p class="muted">Le login Cognito t’oriente automatiquement vers l’espace admin si tu es dans le groupe administrateur, sinon vers la page utilisateur pour signer tes documents.</p>
+          <h2>Accès à l espace documentaire</h2>
+          <p class="muted">Après authentification, l utilisateur est redirigé vers la page Admin ou Signature selon son rôle.</p>
 
           <div class="login-actions">
             <button class="action-button primary" data-action="auth-signin">Se connecter avec Cognito</button>
@@ -42,12 +42,12 @@ export function renderLoginPage(auth: AuthViewState) {
         <aside class="login-panel stack gap-lg">
           <div class="section-card accent-card">
             <div class="section-card-head">
-              <span>Flux du produit</span>
+              <span>Parcours</span>
             </div>
             <div class="step-list">
               <div class="step-item"><strong>1.</strong><span>Connexion Cognito.</span></div>
-              <div class="step-item"><strong>2.</strong><span>Redirection vers la bonne page selon le rôle.</span></div>
-              <div class="step-item"><strong>3.</strong><span>Publication ou signature du PDF dans le même espace.</span></div>
+              <div class="step-item"><strong>2.</strong><span>Redirection selon le rôle.</span></div>
+              <div class="step-item"><strong>3.</strong><span>Publication ou signature du PDF.</span></div>
             </div>
           </div>
 

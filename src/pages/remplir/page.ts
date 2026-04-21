@@ -4,7 +4,7 @@ export function renderUserLeft(progress: { done: number; total: number }) {
       <div>
         <p class="eyebrow">Page 3</p>
         <h2>Documents à signer</h2>
-        <p class="muted">Tu vois ici les documents qui t’ont été attribués. Ouvre un document, complète la popup de contrôle, signe puis exporte le PDF final.</p>
+        <p class="muted">Sélectionne un document attribué, renseigne les champs, signe puis exporte le PDF final.</p>
       </div>
 
       <div class="section-card accent-card">
