@@ -1,6 +1,7 @@
 import {
   accessDirectoryKey,
   accessObjectKey,
+  deleteObject,
   ensureStorageReady,
   getPrincipal,
   isAccessActive,
