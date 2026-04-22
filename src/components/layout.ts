@@ -49,7 +49,7 @@ export function renderAppShell(props: LayoutProps) {
       ? 'Construisez la mise en page de votre document, ajoutez les champs et sauvegardez.'
       : 'Remplissez les champs, apposez votre signature puis envoyez le document complété.';
 
-  const leftSidebar = props.route === 'admin' ? renderAdminLeft(props.progress) : renderUserLeft(props.progress);
+  const leftSidebar = props.route === 'admin' ? renderAdminLeft() : renderUserLeft();
   const rightSidebar = props.route === 'admin' ? renderAdminRight() : renderUserRight();
 
   return `

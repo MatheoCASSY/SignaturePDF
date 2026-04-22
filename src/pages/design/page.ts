@@ -1,6 +1,6 @@
 import { quickFieldLibrary } from '../../config/ui';
 
-export function renderAdminLeft(progress: { done: number; total: number }) {
+export function renderAdminLeft() {
   return `
     <section class="stack gap-lg">
       <div>
@@ -48,22 +48,12 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Actions rapides</span>
+          <span>Actions</span>
         </div>
         <div class="action-grid">
-          <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
           <button class="action-button" data-action="add-page">Ajouter une page</button>
-          <button class="action-button" data-action="save-local">Sauvegarder</button>
           <button class="action-button" data-action="reset-template">Réinitialiser</button>
         </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Suivi</span>
-          <span class="subtle">${progress.done}/${progress.total}</span>
-        </div>
-        <div id="todo-list" class="todo-list"></div>
       </div>
     </section>
   `;
@@ -101,17 +91,6 @@ export function renderAdminRight() {
           <span>Templates dans S3</span>
         </div>
         <div id="remote-template-list" class="summary-stack"></div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>JSON du template</span>
-          <div class="mini-actions">
-            <button class="mini-button" data-action="download-template">Télécharger</button>
-            <button class="mini-button" data-action="reset-template">Réinitialiser</button>
-          </div>
-        </div>
-        <textarea id="template-json" spellcheck="false"></textarea>
       </div>
 
       <div class="section-card">

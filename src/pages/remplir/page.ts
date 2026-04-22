@@ -1,4 +1,4 @@
-export function renderUserLeft(progress: { done: number; total: number }) {
+export function renderUserLeft() {
   return `
     <section class="stack gap-lg">
       <div>
@@ -41,18 +41,9 @@ export function renderUserLeft(progress: { done: number; total: number }) {
         </div>
         <div class="action-grid">
           <button class="action-button primary" data-action="submit-pdf">Signer et envoyer</button>
-          <button class="action-button" data-action="final-pdf">Télécharger seulement</button>
           <button class="action-button" data-action="preview-pdf">Aperçu</button>
           <button class="action-button" data-action="clear-inputs">Vider les champs</button>
         </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Suivi</span>
-          <span class="subtle">${progress.done}/${progress.total}</span>
-        </div>
-        <div id="todo-list" class="todo-list"></div>
       </div>
     </section>
   `;
@@ -61,33 +52,6 @@ export function renderUserLeft(progress: { done: number; total: number }) {
 export function renderUserRight() {
   return `
     <section class="stack gap-lg">
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Champs détectés</span>
-          <span class="subtle">live</span>
-        </div>
-        <div id="field-summary" class="summary-stack"></div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Statut d'accès</span>
-          <span class="subtle">Cognito</span>
-        </div>
-        <div id="access-status" class="summary-stack"></div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Données du formulaire</span>
-          <div class="mini-actions">
-            <button class="mini-button" data-action="download-inputs">Télécharger</button>
-            <button class="mini-button" data-action="apply-json">Appliquer</button>
-          </div>
-        </div>
-        <textarea id="inputs-json" spellcheck="false"></textarea>
-      </div>
-
       <div class="section-card">
         <div class="section-card-head">
           <span>Journal</span>
@@ -106,7 +70,6 @@ export function renderUserRight() {
           <div class="modal-actions" style="margin-top:10px">
             <button class="action-button primary" data-action="load-selected-document">Ouvrir le document</button>
             <button class="action-button primary" data-action="submit-pdf">Signer et envoyer</button>
-            <button class="action-button" data-action="final-pdf">Télécharger seulement</button>
           </div>
         </div>
       </div>
