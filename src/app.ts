@@ -1,4 +1,5 @@
 import { checkTemplate, cloneDeep, getInputFromTemplate, type Template } from '@pdfme/common';
+import { PDFDocument as PdfLibDocument } from '@pdfme/pdf-lib';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -144,28 +145,53 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
-function withNoFontSubsetting(template: Template): Template {
+async function stripBrokenFonts(template: Template): Promise<Template> {
   if (!template.font) return template;
-  return {
-    ...template,
-    font: Object.fromEntries(
-      Object.entries(template.font).map(([name, config]) => [name, { ...config, subset: false }])
-    ),
-  };
+
+  const broken = new Set<string>();
+  const testDoc = await PdfLibDocument.create();
+
+  for (const [name, config] of Object.entries(template.font)) {
+    try {
+      const raw = config.data;
+      const fontData: ArrayBuffer =
+        typeof raw === 'string' && raw.startsWith('http')
+          ? await fetch(raw).then((r) => r.arrayBuffer())
+          : (raw as ArrayBuffer);
+      // subset:true triggers the same cmap parsing pdfme uses internally
+      await testDoc.embedFont(fontData, { subset: true });
+    } catch {
+      broken.add(name);
+      console.warn(`[pdfme] Font "${name}" has an incompatible cmap table and will be removed from this generation.`);
+    }
+  }
+
+  if (broken.size === 0) return template;
+
+  const cleanFont = Object.fromEntries(
+    Object.entries(template.font).filter(([name]) => !broken.has(name))
+  );
+
+  const cleanSchemas = template.schemas.map((page) =>
+    page.map((schema) => {
+      const s = schema as Record<string, unknown>;
+      if (typeof s.fontName === 'string' && broken.has(s.fontName)) {
+        const { fontName: _dropped, ...rest } = s;
+        return rest as typeof schema;
+      }
+      return schema;
+    })
+  );
+
+  return { ...template, font: cleanFont, schemas: cleanSchemas };
 }
 
 async function generatePdf(
   generate: (...args: any[]) => Promise<Uint8Array>,
   args: { template: Template; inputs: Record<string, string>[]; options: Record<string, unknown>; plugins: typeof uiPlugins }
 ): Promise<Uint8Array> {
-  try {
-    return await generate(args);
-  } catch (err) {
-    if ((err as Error).message?.toLowerCase().includes('cmap')) {
-      return await generate({ ...args, template: withNoFontSubsetting(args.template) });
-    }
-    throw err;
-  }
+  const sanitized = await stripBrokenFonts(args.template);
+  return generate({ ...args, template: sanitized });
 }
 
 
