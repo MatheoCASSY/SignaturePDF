@@ -302,19 +302,18 @@ export default async function handler(req: any, res: any) {
         const index = await loadIndex();
         const documents = await Promise.all(
           index.templates.map(async (template) => {
-            const foundAccess = principal.isAdmin ? null : await loadFirstAccess(template.id, principal);
+            const foundAccess = await loadFirstAccess(template.id, principal);
             const accessRow = foundAccess?.access || null;
             const access = accessRow ? toAccessRecord(normalizeAccessRecord(accessRow)) : null;
-            const allowed = principal.isAdmin || isAccessActive(access);
 
-            if (!access || !allowed) {
+            if (!access || !isAccessActive(access)) {
               return null;
             }
 
             return {
               template,
               access,
-              allowed,
+              allowed: true,
               isAdmin: principal.isAdmin,
             };
           }),
