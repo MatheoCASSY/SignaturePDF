@@ -1,0 +1,41 @@
+{
+  "file_hashes": {
+    "api/_shared.ts": "b8828f792b8dbddd77e31b2de1bbcfabb45c3cffe7b7f5156d3c908a45f568e8",
+    "api/access.ts": "b99d5669c6770a08110942d28947835027fa641ea1f09f5df39d89271d4b55a4",
+    "api/submissions.ts": "b3816db1e5ffc55c87466405967238b97b9ff869f59a562e2a56006a69dbfcf6",
+    "api/templates.ts": "ae90672ad5c313b1d23b9259979533953650d3fc28bfa41ed1a2912525afd9d2",
+    "src/app.ts": "cb819ae4b5d6e03b46ba6baae0ae0a9b00d93ca64c0b077813c7d9498868ec5b",
+    "src/components/header.ts": "155bf1785397747c4f79762857b11531790995d0732f9f89bdb97673e7ed2f4a",
+    "src/components/layout.ts": "1b6f7643ed83f5808d891a8854fa03774f1f490d798c34c35f2c2f1527a9ea8f",
+    "src/components/todo.ts": "a401fa4d875aca7badf534b268c7234f231109f7a29e16890134eefe76680236",
+    "src/config/auth.ts": "5da59c31f24c34922b1369308ba40f9b4b9601e9c0cca956970e59f31f20c350",
+    "src/config/storage.ts": "5c84fa35954f9d342bc25f161fcaf759d70df37feffc13cfebaf4ed518f9d92e",
+    "src/config/ui.ts": "a534596168737cf6b48920bbbb1c16a55caea1b649017c2e1be47f9348bc5582",
+    "src/core/auth.ts": "d26cbca54569e25d97966a38ae8651a3937270a84650adea5c2c0b20f707e593",
+    "src/core/fields.ts": "affbe1aa27074f96b2bcf9a64e78ddf7a10f75db34794712bb31309031ae4319",
+    "src/core/fillablePdf.ts": "c17c2e04fcab5aec137e93aedb5ac739e83654e65db11d403d927c350c7528f5",
+    "src/core/remote.ts": "577897de8e8160458ca495f8bd30ddbad09bd74cc3a3a068abeca1cbfc8d95d5",
+    "src/core/storage.ts": "d69515463d7e86c786429582b691754363b409fc94651fae05c833a7a866fdcb",
+    "src/core/template.ts": "349d5e5dade9ebe7460602a6510a7a77281d32ab162ec52853eee37c3ccc493b",
+    "src/data/templates.ts": "3b53b0dcaea5d3f7d3f1cb8a3e2ea7c031e2a0677c4f24ddaba48a063a64d0d9",
+    "src/data/todos.ts": "25005582cf95ba754495bdb253eb29f4c456a49949466301c7c93e1d5332f1f2",
+    "src/main.ts": "40fd040f7179f00ef4ad52d2351122946b74149982477f96d37c84186ec825f5",
+    "src/pages/access/page.ts": "3f7faea68de0267102d2176f2936fd0e91a698bbb87d23002c6a7d503f114535",
+    "src/pages/design/page.ts": "7c97010c0f4ccaa6b5f47024829c76348082dfc06a02c28affcf388181063328",
+    "src/pages/login/page.ts": "2edd2465612fe9974f7ecbdd84d287846cd1b57773b6a84a3093f59d41f5add9",
+    "src/pages/remplir/page.ts": "0c15be9daccc2e39ebc3831aa0ae59eb888933c2e996e9abe39f1b6edeceaff1",
+    "src/types/app.ts": "d5a98d3b9fe9e48970ee5bff4b6f3ef4e44d350952dd211d9c20a79e1d2987db",
+    "src/utils/dom.ts": "f361b15a867644361cebf025232a8fac725d37faa89e74a3e1b1fa19905befe1",
+    "src/utils/files.ts": "4663c9ad77cc9e599166f451c5db37fc953286b22d9605a11b5349550e222f43",
+    "src/utils/routing.ts": "9529057f8da22a8931d66001950117ab2947e0ad8f5785f1e16f6c64f9046934"
+  },
+  "indexed_at_commit": "6af0bf767d5bb575022d793d305cdc79a1a23b84",
+  "indexed_at_timestamp": "2026-04-22T12:43:17.018250900+00:00",
+  "schema_version": 3,
+  "stats": {
+    "total_edges": 367,
+    "total_files": 28,
+    "total_nodes": 225
+  },
+  "vexp_version": "2.0.12"
+}

@@ -263,7 +263,7 @@ function bindShellEvents() {
 
   basePdfInput?.addEventListener('change', async () => {
     const file = basePdfInput.files?.[0];
-    if (!file || (state.route !== 'admin' && state.route !== 'access')) return;
+    if (!file || state.route !== 'admin') return;
     const dataUrl = await readFileAsDataUrl(file);
     const nextTemplate = cloneDeep(state.template);
     nextTemplate.basePdf = dataUrl;
@@ -374,7 +374,8 @@ async function mountUi() {
   const mount = document.querySelector<HTMLDivElement>('#pdfme-mount');
   if (!mount) return;
 
-  if (state.route === 'login') {
+  // La page access et login n'ont pas de canvas pdfme
+  if (state.route === 'login' || state.route === 'access') {
     if (activeUi) {
       activeUi.destroy();
       activeUi = null;
@@ -394,16 +395,11 @@ async function mountUi() {
   const { Designer, Form } = await loadUiModule();
   if (requestId !== mountRequestId) return;
 
-  const commonOptions = {
-    lang: state.lang,
-    ...(state.route === 'admin' || state.route === 'access' ? DESIGNER_OPTIONS : FORM_OPTIONS),
-  };
-
-  if (state.route === 'admin' || state.route === 'access') {
+  if (state.route === 'admin') {
     const designer = new Designer({
       domContainer: mount,
       template: state.template,
-      options: commonOptions,
+      options: { lang: state.lang, ...DESIGNER_OPTIONS },
       plugins: uiPlugins,
     }) as unknown as DesignerLike;
 
@@ -458,7 +454,7 @@ async function mountUi() {
 }
 
 function getDesignerUi() {
-  if ((state.route !== 'admin' && state.route !== 'access') || activeUiKind !== 'admin' || !activeUi) return null;
+  if (state.route !== 'admin' || activeUiKind !== 'admin' || !activeUi) return null;
   return activeUi as DesignerLike;
 }
 
@@ -834,7 +830,7 @@ function applyInputs(value: unknown) {
 
 function applyJsonFromEditors() {
   try {
-    if (state.route === 'admin' || state.route === 'access') {
+    if (state.route === 'admin') {
       const parsedTemplate = JSON.parse(state.templateDraft) as Template;
       applyTemplate(parsedTemplate);
       return;

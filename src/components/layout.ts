@@ -27,31 +27,30 @@ export function renderAppShell(props: LayoutProps) {
     `;
   }
 
-  const stageTitle =
-    props.route === 'admin'
-      ? 'Éditeur de template'
-      : props.route === 'access'
-        ? 'Publication et droits de signature'
-        : 'Document à signer';
+  if (props.route === 'access') {
+    return `
+      <div class="app-shell">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
+
+        ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
+
+        <main class="workspace workspace-access">
+          <aside class="panel sidebar left-sidebar">${renderAccessLeft(props.progress)}</aside>
+          <aside class="panel sidebar right-sidebar access-right">${renderAccessRight()}</aside>
+        </main>
+      </div>
+    `;
+  }
+
+  const stageTitle = props.route === 'admin' ? 'Éditeur de template' : 'Document à signer';
   const stageDescription =
     props.route === 'admin'
       ? 'Construisez la mise en page de votre document, ajoutez les champs et sauvegardez.'
-      : props.route === 'access'
-        ? 'Publiez le template dans S3 et attribuez les droits de signature aux membres concernés.'
-        : 'Remplissez les champs, apposez votre signature puis envoyez le document complété.';
+      : 'Remplissez les champs, apposez votre signature puis envoyez le document complété.';
 
-  const leftSidebar =
-    props.route === 'admin'
-      ? renderAdminLeft(props.progress)
-      : props.route === 'access'
-        ? renderAccessLeft(props.progress)
-        : renderUserLeft(props.progress);
-  const rightSidebar =
-    props.route === 'admin'
-      ? renderAdminRight()
-      : props.route === 'access'
-        ? renderAccessRight()
-        : renderUserRight();
+  const leftSidebar = props.route === 'admin' ? renderAdminLeft(props.progress) : renderUserLeft(props.progress);
+  const rightSidebar = props.route === 'admin' ? renderAdminRight() : renderUserRight();
 
   return `
     <div class="app-shell">
