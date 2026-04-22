@@ -35,6 +35,9 @@ import {
   loadAdminSubmissions,
   downloadAdminSubmission,
   deleteAdminSubmission,
+  deleteRemoteTemplate,
+  loadTemplateGrants,
+  type TemplateGrant,
 } from './core/remote';
 import {
   clearOidcSession,
@@ -79,6 +82,7 @@ const state: AppState = {
   selectedInboxTemplateId: '',
   adminAccessMaxUses: 1,
   submissions: [],
+  templateGrants: [],
 };
 
 state.inputs = loadInputs(state.template);
@@ -530,7 +534,18 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
 
   if (action === 'select-access-template') {
     const templateId = button?.dataset.templateId || '';
-    if (templateId) selectAccessTemplate(templateId);
+    if (templateId) await selectAccessTemplate(templateId);
+    return;
+  }
+
+  if (action === 'delete-template') {
+    const templateId = button?.dataset.templateId || '';
+    if (templateId) await deleteTemplate(templateId);
+    return;
+  }
+
+  if (action === 'refresh-grants') {
+    await refreshTemplateGrants();
     return;
   }
 
@@ -727,7 +742,7 @@ async function refreshRouteData() {
     await refreshUserDirectory(true);
     await refreshSubmissions(true);
     if (state.remoteTemplateId) {
-      await refreshRemoteAccessStatus(true);
+      await refreshTemplateGrants(true);
     }
   }
 
@@ -1015,13 +1030,80 @@ async function grantAccess() {
   }
 }
 
-function selectAccessTemplate(templateId: string) {
+async function selectAccessTemplate(templateId: string) {
   state.remoteTemplateId = templateId;
   persistRemoteTemplateId(templateId);
   syncAdminFields();
   syncRemotePanels();
-  void refreshUserDirectory(true);
-  pushNotice(`Template sélectionné : ${templateId}`, 'info');
+  await Promise.all([refreshUserDirectory(true), refreshTemplateGrants(true)]);
+}
+
+async function deleteTemplate(templateId: string) {
+  if (!state.authToken) return;
+  const name = state.remoteTemplates.find((t) => t.id === templateId)?.name || templateId;
+  try {
+    await deleteRemoteTemplate(templateId, state.authToken);
+    state.remoteTemplates = state.remoteTemplates.filter((t) => t.id !== templateId);
+    if (state.remoteTemplateId === templateId) {
+      state.remoteTemplateId = '';
+      state.templateGrants = [];
+      persistRemoteTemplateId('');
+    }
+    syncRemotePanels();
+    pushNotice(`Template supprimé : ${name}`, 'info');
+  } catch (error) {
+    pushNotice(`Suppression impossible : ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function refreshTemplateGrants(silent = false) {
+  if (!state.authToken || !state.remoteTemplateId) {
+    state.templateGrants = [];
+    syncGrantsPanel();
+    return;
+  }
+  try {
+    const { grants } = await loadTemplateGrants(state.remoteTemplateId, state.authToken);
+    state.templateGrants = grants;
+    syncGrantsPanel();
+  } catch (error) {
+    if (!silent) pushNotice(`Impossible de charger les signatures : ${(error as Error).message}`, 'danger');
+  }
+}
+
+function syncGrantsPanel() {
+  const panel = document.querySelector<HTMLDivElement>('#grants-list');
+  if (!panel) return;
+
+  if (!state.remoteTemplateId) {
+    panel.innerHTML = '<p class="notice-empty">Sélectionnez un template pour voir les signatures.</p>';
+    return;
+  }
+
+  if (!state.templateGrants.length) {
+    panel.innerHTML = '<p class="notice-empty">Aucun accès accordé pour ce template.</p>';
+    return;
+  }
+
+  panel.innerHTML = state.templateGrants
+    .map((grant) => {
+      const status = grant.consumedAt
+        ? `<span class="status-badge signed">Signé</span>`
+        : grant.active
+          ? `<span class="status-badge pending">En attente</span>`
+          : `<span class="status-badge expired">Expiré</span>`;
+      const date = new Date(grant.grantedAt).toLocaleDateString('fr-FR');
+      return `
+        <div class="summary-row">
+          <div>
+            <strong>${escapeHtml(grant.principal)}</strong>
+            <span>${date} · ${grant.usedCount}/${grant.maxUses} utilisation(s)</span>
+          </div>
+          ${status}
+        </div>
+      `;
+    })
+    .join('');
 }
 
 async function loadPublishedTemplate(silent = false) {
@@ -1140,12 +1222,18 @@ function syncRemotePanels() {
         .map(
           (template) => `
             <div class="summary-row">
-              <strong>${escapeHtml(template.name)}</strong>
-              <span>${escapeHtml(template.id)}</span>
+              <div>
+                <strong>${escapeHtml(template.name)}</strong>
+                <span>${escapeHtml(template.id)}</span>
+              </div>
+              <button class="mini-button danger" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Supprimer</button>
             </div>
           `,
         )
         .join('');
+      remoteTemplateList.querySelectorAll<HTMLButtonElement>('[data-action="delete-template"]').forEach((button) => {
+        button.addEventListener('click', async () => handleAction('delete-template', button));
+      });
     }
   }
 
@@ -1224,6 +1312,7 @@ function syncRemotePanels() {
 
   syncDocumentModal();
   syncSubmissionPanel();
+  syncGrantsPanel();
 }
 
 function syncSubmissionPanel() {

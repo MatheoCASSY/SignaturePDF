@@ -1,9 +1,11 @@
 import { randomUUID } from 'crypto';
 import {
+  deleteObject,
   ensureStorageReady,
   getPrincipal,
   isAccessActive,
   json,
+  listObjectKeys,
   normalizeTemplateSummary,
   principalCandidates,
   readJsonBody,
@@ -154,6 +156,30 @@ export default async function handler(req: any, res: any) {
         template: toRecord(record),
         accessUrl: `/user?templateId=${record.id}`,
       });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      if (!principal?.isAdmin) {
+        json(res, 401, { error: 'Accès admin requis' });
+        return;
+      }
+
+      const templateId = url.searchParams.get('id');
+      if (!templateId) {
+        json(res, 400, { error: 'id requis' });
+        return;
+      }
+
+      await deleteObject(templateObjectKey(templateId));
+
+      const accessKeys = await listObjectKeys(`access/${encodeURIComponent(templateId)}/`);
+      await Promise.allSettled(accessKeys.map((key) => deleteObject(key)));
+
+      const index = await loadIndex();
+      await saveIndex(index.templates.filter((t) => t.id !== templateId));
+
+      json(res, 200, { ok: true });
       return;
     }
 

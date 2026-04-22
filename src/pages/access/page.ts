@@ -43,6 +43,14 @@ export function renderAccessRight() {
     <section class="stack gap-lg">
       <div class="section-card accent-card">
         <div class="section-card-head">
+          <span>Suivi des signatures</span>
+          <button class="mini-button" data-action="refresh-grants">Actualiser</button>
+        </div>
+        <div id="grants-list" class="summary-stack"></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
           <span>Documents signés reçus</span>
           <button class="mini-button" data-action="refresh-submissions">Actualiser</button>
         </div>

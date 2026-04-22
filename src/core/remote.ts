@@ -180,3 +180,27 @@ export function deleteAdminSubmission(id: string, token: string) {
     body: JSON.stringify({ id }),
   });
 }
+
+export function deleteRemoteTemplate(id: string, token: string) {
+  return requestJson<{ ok: boolean }>(`/api/templates?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export type TemplateGrant = {
+  templateId: string;
+  principal: string;
+  grantedAt: string;
+  consumedAt: string | null;
+  maxUses: number;
+  usedCount: number;
+  active: boolean;
+};
+
+export function loadTemplateGrants(templateId: string, token: string) {
+  return requestJson<{ grants: TemplateGrant[] }>(
+    `/api/access?mode=template-grants&templateId=${encodeURIComponent(templateId)}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+}

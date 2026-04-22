@@ -119,6 +119,7 @@ export type AppState = {
   selectedInboxTemplateId: string;
   adminAccessMaxUses: number;
   submissions: SubmissionRecord[];
+  templateGrants: import('../core/remote').TemplateGrant[];
 };
 
 export type AuthViewState = {

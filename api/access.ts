@@ -5,6 +5,7 @@ import {
   getPrincipal,
   isAccessActive,
   json,
+  listObjectKeys,
   normalizeTemplateSummary,
   normalizeAccessRecord,
   normalizeUserDirectoryRecord,
@@ -172,6 +173,36 @@ export default async function handler(req: any, res: any) {
         );
 
         json(res, 200, { users });
+        return;
+      }
+
+      if (mode === 'template-grants') {
+        if (!principal?.isAdmin) {
+          json(res, 401, { error: 'Accès admin requis' });
+          return;
+        }
+
+        if (!templateId) {
+          json(res, 400, { error: 'templateId requis' });
+          return;
+        }
+
+        const keys = await listObjectKeys(`access/${encodeURIComponent(templateId)}/`);
+        const grants = (
+          await Promise.all(
+            keys.map(async (key) => {
+              const record = await readJsonObject<RemoteAccessRecord | null>(key, null);
+              if (!record) return null;
+              const normalized = normalizeAccessRecord(record);
+              return {
+                ...toAccessRecord(normalized),
+                active: isAccessActive(normalized),
+              };
+            }),
+          )
+        ).filter(Boolean);
+
+        json(res, 200, { grants });
         return;
       }
 

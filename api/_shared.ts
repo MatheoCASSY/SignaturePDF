@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const DEFAULT_ADMIN_GROUP = 'admins';
@@ -305,4 +305,23 @@ export function principalKey(principal: { sub: string; email: string }) {
 export function principalCandidates(principal: { sub: string; email: string }) {
   const values = [principal.sub, principal.email].map((value) => String(value || '').trim()).filter(Boolean);
   return Array.from(new Set(values));
+}
+
+export async function deleteObject(key: string) {
+  await getS3Client().send(
+    new DeleteObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+    }),
+  );
+}
+
+export async function listObjectKeys(prefix: string): Promise<string[]> {
+  const response = await getS3Client().send(
+    new ListObjectsV2Command({
+      Bucket: getBucketName(),
+      Prefix: prefix,
+    }),
+  );
+  return (response.Contents || []).map((obj) => obj.Key || '').filter(Boolean);
 }

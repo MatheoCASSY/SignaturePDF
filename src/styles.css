@@ -714,6 +714,17 @@ textarea::-webkit-scrollbar-thumb { background: var(--purple-mid); border-radius
 .mini-button.danger { color: var(--danger); }
 .mini-button.danger:hover { background: var(--danger-soft); color: var(--danger); }
 
+.status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.status-badge.signed  { background: #d1fae5; color: #065f46; }
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.status-badge.expired { background: #fee2e2; color: #991b1b; }
+
 /* ── Animations ── */
 .panel, .section-card, .mode-card, .summary-row, .summary-item,
 .todo-item, .notice-item { animation: rise-in 360ms ease both; }
