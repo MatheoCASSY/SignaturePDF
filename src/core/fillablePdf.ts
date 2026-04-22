@@ -78,7 +78,13 @@ async function getPdfFont(arg: { pdfDoc: PdfLibDocument; font: Font; fontName: s
       ? await fetch(fontValue.data).then((response) => response.arrayBuffer())
       : fontValue.data;
 
-  const pdfFont = await pdfDoc.embedFont(fontData, { subset: fontValue.subset ?? true });
+  let pdfFont: PDFFont;
+  try {
+    pdfFont = await pdfDoc.embedFont(fontData, { subset: fontValue.subset ?? true });
+  } catch {
+    // Some fonts have cmap tables in formats unsupported by pdf-lib subsetting
+    pdfFont = await pdfDoc.embedFont(fontData, { subset: false });
+  }
   _cache.set(cacheKey, pdfFont);
   return pdfFont;
 }
