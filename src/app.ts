@@ -787,10 +787,7 @@ async function openInboxDocument(templateId: string, keepModalOpen = false, sile
     state.remoteAccess = access;
 
     if (!access.allowed) {
-      syncRemotePanels();
-      if (!silent) {
-        pushNotice(`Acces refuse: ${access.reason}`, 'danger');
-      }
+      dropFromInbox(templateId);
       return;
     }
 
@@ -1097,6 +1094,16 @@ async function deleteTemplate(templateId: string) {
   } catch (error) {
     pushNotice(`Suppression impossible : ${(error as Error).message}`, 'danger');
   }
+}
+
+function dropFromInbox(templateId: string) {
+  state.remoteInbox = state.remoteInbox.filter((d) => d.template.id !== templateId);
+  if (state.remoteTemplateId === templateId) {
+    state.remoteTemplateId = '';
+    persistRemoteTemplateId('');
+  }
+  syncRemotePanels();
+  updateSignatureProgress();
 }
 
 async function revokeAccess(templateId: string, principal: string, label: string) {
@@ -1514,6 +1521,17 @@ async function exportAndSubmitPdf() {
     return;
   }
 
+  try {
+    const access = await checkRemoteAccess(state.remoteTemplateId, state.authToken);
+    if (!access.allowed) {
+      dropFromInbox(state.remoteTemplateId);
+      return;
+    }
+  } catch {
+    pushNotice('Impossible de vérifier votre accès. Réessayez.', 'danger');
+    return;
+  }
+
   let pdf: Uint8Array;
   try {
     const template = currentTemplate();
@@ -1531,53 +1549,19 @@ async function exportAndSubmitPdf() {
     return;
   }
 
-  // Téléchargement local
-  const safeName = (state.templateName || 'document').replace(/[^a-zA-Z0-9\u00C0-\u024F\-_ ]/g, '_');
+  const safeName = (state.templateName || 'document').replace(/[^a-zA-Z0-9À-ɏ\-_ ]/g, '_');
   downloadBinary(pdf, `${safeName}.pdf`);
-  pushNotice('PDF téléchargé localement.', 'success');
 
-  // Envoi à l'admin via S3
-  try {
-    setStatus('Envoi à l\'admin...');
-    let binary = '';
-    for (let i = 0; i < pdf.length; i++) binary += String.fromCharCode(pdf[i]);
-    const pdfBase64 = btoa(binary);
-    await submitSignedPdf(
-      {
-        templateId: state.remoteTemplateId,
-        templateName: state.templateName || 'Document',
-        pdf: pdfBase64,
-      },
-      state.authToken,
-    );
-    pushNotice('Document envoyé à l\'admin avec succès.', 'success');
-  } catch (error) {
-    pushNotice(`Envoi échoué : ${(error as Error).message}`, 'danger');
-    return;
-  }
-
-  // Consommation de l'accès
   try {
     const response = await consumeRemoteAccess(state.remoteTemplateId, state.authToken);
     const stillActive = !response.access.consumedAt && response.access.usedCount < response.access.maxUses;
-    state.remoteAccess = {
-      allowed: stillActive,
-      reason: stillActive ? 'granted' : 'consumed',
-      principal: response.access.principal,
-      access: response.access,
-    };
     if (!stillActive) {
-      state.remoteInbox = state.remoteInbox.filter((d) => d.template.id !== state.remoteTemplateId);
+      dropFromInbox(state.remoteTemplateId);
+    } else {
+      pushNotice(`Il te reste ${response.access.maxUses - response.access.usedCount} signature(s) disponible(s).`, 'info');
     }
-    syncRemotePanels();
-    pushNotice(
-      stillActive
-        ? `Signature envoyée. Il te reste ${response.access.maxUses - response.access.usedCount} envoi(s) disponible(s).`
-        : 'Document signé et envoyé avec succès.',
-      'success',
-    );
   } catch (error) {
-    pushNotice(`Impossible de consommer l'accès: ${(error as Error).message}`, 'warning');
+    pushNotice(`Avertissement : ${(error as Error).message}`, 'warning');
   }
 }
 
