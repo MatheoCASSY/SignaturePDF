@@ -144,6 +144,30 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
+function withNoFontSubsetting(template: Template): Template {
+  if (!template.font) return template;
+  return {
+    ...template,
+    font: Object.fromEntries(
+      Object.entries(template.font).map(([name, config]) => [name, { ...config, subset: false }])
+    ),
+  };
+}
+
+async function generatePdf(
+  generate: (...args: any[]) => Promise<Uint8Array>,
+  args: { template: Template; inputs: Record<string, string>[]; options: Record<string, unknown>; plugins: typeof uiPlugins }
+): Promise<Uint8Array> {
+  try {
+    return await generate(args);
+  } catch (err) {
+    if ((err as Error).message?.toLowerCase().includes('cmap')) {
+      return await generate({ ...args, template: withNoFontSubsetting(args.template) });
+    }
+    throw err;
+  }
+}
+
 
 async function startup() {
   await bootstrapAuth();
@@ -1484,12 +1508,7 @@ async function exportPdf(fillable: boolean) {
 
   const pdf = fillable
     ? await generateFillablePdf(template, inputs, uiPlugins as unknown as Record<string, unknown>)
-    : await generate({
-        template,
-        inputs,
-        options: { title: 'pdfme-studio' },
-        plugins: uiPlugins,
-      });
+    : await generatePdf(generate, { template, inputs, options: { title: 'pdfme-studio' }, plugins: uiPlugins });
 
   downloadBinary(pdf, fillable ? 'pdf-interactif.pdf' : 'pdf-rempli.pdf');
   pushNotice(fillable ? 'PDF interactif exporte.' : 'PDF final exporte.', 'success');
@@ -1539,7 +1558,7 @@ async function exportAndSubmitPdf() {
     const inputs = currentInputs(template);
     const { generate } = await loadGeneratorModule();
     setStatus('Génération du PDF...');
-    pdf = await generate({
+    pdf = await generatePdf(generate, {
       template,
       inputs,
       options: { title: state.templateName || 'document-signe' },
@@ -1614,7 +1633,7 @@ async function previewPdf() {
   const template = currentTemplate();
   const inputs = currentInputs(template);
   const { generate } = await loadGeneratorModule();
-  const pdf = await generate({
+  const pdf = await generatePdf(generate, {
     template,
     inputs,
     options: { title: 'pdfme-studio-preview' },
