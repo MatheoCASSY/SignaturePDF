@@ -1,4 +1,5 @@
 import type { Template } from '@pdfme/common';
+import type { SubmissionRecord } from '../types/app';
 
 export type RemoteTemplateRecord = {
   id: string;
@@ -149,5 +150,33 @@ export function loadRemoteUserDirectory(token: string, templateId?: string) {
 
   return requestJson<{ users: RemoteUserDirectoryEntry[] }>(`/api/access?${query.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function submitSignedPdf(payload: { templateId: string; templateName: string; pdf: string }, token: string) {
+  return requestJson<{ submission: SubmissionRecord }>('/api/submissions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function loadAdminSubmissions(token: string) {
+  return requestJson<{ submissions: SubmissionRecord[] }>('/api/submissions', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function downloadAdminSubmission(id: string, token: string) {
+  return requestJson<{ submission: SubmissionRecord; filename: string; pdf: string }>(`/api/submissions?id=${encodeURIComponent(id)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function deleteAdminSubmission(id: string, token: string) {
+  return requestJson<{ ok: boolean }>('/api/submissions', {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ id }),
   });
 }

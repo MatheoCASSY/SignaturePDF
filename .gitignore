@@ -3,4 +3,6 @@ dist
 .npm
 .vercel
 .env
+.claude
+.claude_cache
 .env

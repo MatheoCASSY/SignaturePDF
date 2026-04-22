@@ -29,16 +29,16 @@ export function renderAppShell(props: LayoutProps) {
 
   const stageTitle =
     props.route === 'admin'
-      ? 'Administrer les templates'
+      ? 'Éditeur de template'
       : props.route === 'access'
-        ? 'Gérer les accès et signatures'
-        : 'Remplir et signer le document';
+        ? 'Publication et droits de signature'
+        : 'Document à signer';
   const stageDescription =
     props.route === 'admin'
-      ? 'Construis le template et garde l’éditeur centré sur le contenu du document.'
+      ? 'Construisez la mise en page de votre document, ajoutez les champs et sauvegardez.'
       : props.route === 'access'
-        ? 'Publie le template, distribue les accès et vérifie les droits de signature.'
-        : 'Sélectionne un document autorisé, complète les champs puis exporte le PDF final.';
+        ? 'Publiez le template dans S3 et attribuez les droits de signature aux membres concernés.'
+        : 'Remplissez les champs, apposez votre signature puis envoyez le document complété.';
 
   const leftSidebar =
     props.route === 'admin'

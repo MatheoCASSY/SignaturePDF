@@ -65,6 +65,15 @@ export type RemoteInboxDocument = {
   isAdmin: boolean;
 };
 
+export type SubmissionRecord = {
+  id: string;
+  templateId: string;
+  templateName: string;
+  principal: string;
+  submittedAt: string;
+  filename: string;
+};
+
 export type TodoItem = {
   id: number;
   title: string;
@@ -109,6 +118,7 @@ export type AppState = {
   userDirectoryQuery: string;
   selectedInboxTemplateId: string;
   adminAccessMaxUses: number;
+  submissions: SubmissionRecord[];
 };
 
 export type AuthViewState = {

@@ -31,6 +31,10 @@ import {
   loadRemoteUserDirectory,
   loadRemoteTemplates,
   saveRemoteTemplate,
+  submitSignedPdf,
+  loadAdminSubmissions,
+  downloadAdminSubmission,
+  deleteAdminSubmission,
 } from './core/remote';
 import {
   clearOidcSession,
@@ -45,7 +49,7 @@ import { getTodoProgress, renderTodoItems } from './components/todo';
 import { downloadBinary, downloadJson, readFileAsDataUrl, readJsonFile } from './utils/files';
 import { parseRoute, routePath } from './utils/routing';
 import { escapeHtml } from './utils/dom';
-import type { AppState, AuthViewState, FieldKind, NoticeTone, RouteName } from './types/app';
+import type { AppState, AuthViewState, FieldKind, NoticeTone, RouteName, SubmissionRecord } from './types/app';
 import './styles.css';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -74,6 +78,7 @@ const state: AppState = {
   userDirectoryQuery: '',
   selectedInboxTemplateId: '',
   adminAccessMaxUses: 1,
+  submissions: [],
 };
 
 state.inputs = loadInputs(state.template);
@@ -617,6 +622,29 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
 
   if (action === 'clear-inputs') {
     clearInputs();
+    return;
+  }
+
+  if (action === 'submit-pdf') {
+    await exportAndSubmitPdf();
+    return;
+  }
+
+  if (action === 'refresh-submissions') {
+    await refreshSubmissions();
+    return;
+  }
+
+  if (action === 'download-submission') {
+    const submissionId = button?.dataset.submissionId || '';
+    if (submissionId) await downloadSubmission(submissionId);
+    return;
+  }
+
+  if (action === 'delete-submission') {
+    const submissionId = button?.dataset.submissionId || '';
+    if (submissionId) await deleteSubmission(submissionId);
+    return;
   }
 }
 
@@ -690,6 +718,7 @@ async function refreshRouteData() {
   if (state.route === 'access') {
     await refreshRemoteTemplates(true);
     await refreshUserDirectory(true);
+    await refreshSubmissions(true);
     if (state.remoteTemplateId) {
       await refreshRemoteAccessStatus(true);
     }
@@ -1140,6 +1169,41 @@ function syncRemotePanels() {
   }
 
   syncDocumentModal();
+  syncSubmissionPanel();
+}
+
+function syncSubmissionPanel() {
+  const submissionList = document.querySelector<HTMLDivElement>('#submission-list');
+  if (!submissionList) return;
+
+  if (!state.submissions.length) {
+    submissionList.innerHTML = '<p class="notice-empty">Aucune soumission reçue pour le moment.</p>';
+    return;
+  }
+
+  submissionList.innerHTML = state.submissions
+    .map((s) => {
+      const date = new Date(s.submittedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+      return `
+        <div class="summary-row submission-row">
+          <div class="submission-info">
+            <strong>${escapeHtml(s.templateName)}</strong>
+            <span>${escapeHtml(s.principal)} · ${escapeHtml(date)}</span>
+          </div>
+          <div class="submission-actions">
+            <button class="mini-button" data-action="download-submission" data-submission-id="${escapeHtml(s.id)}">Télécharger</button>
+            <button class="mini-button danger" data-action="delete-submission" data-submission-id="${escapeHtml(s.id)}">Supprimer</button>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  submissionList.querySelectorAll<HTMLButtonElement>('[data-action="download-submission"], [data-action="delete-submission"]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      await handleAction(button.dataset.action!, button);
+    });
+  });
 }
 
 async function refreshRemoteAccessStatus(silent = false) {
@@ -1219,6 +1283,113 @@ async function exportPdf(fillable: boolean) {
     } catch (error) {
       pushNotice(`Impossible de consommer l’accès: ${(error as Error).message}`, 'warning');
     }
+  }
+}
+
+async function exportAndSubmitPdf() {
+  if (!state.authToken) {
+    pushNotice('Connexion requise pour envoyer le document.', 'warning');
+    return;
+  }
+
+  if (!state.remoteTemplateId) {
+    pushNotice('Ouvre un document depuis ta liste avant d\'envoyer.', 'warning');
+    return;
+  }
+
+  const template = currentTemplate();
+  const inputs = currentInputs(template);
+  const { generate } = await loadGeneratorModule();
+
+  setStatus('Génération du PDF...');
+
+  const pdf = await generate({
+    template,
+    inputs,
+    options: { font: getDefaultFont(), title: state.templateName || 'document-signe' },
+    plugins: uiPlugins,
+  });
+
+  // Téléchargement local
+  const safeName = (state.templateName || 'document').replace(/[^a-zA-Z0-9\u00C0-\u024F\-_ ]/g, '_');
+  downloadBinary(pdf, `${safeName}.pdf`);
+  pushNotice('PDF téléchargé localement.', 'success');
+
+  // Envoi à l'admin via S3
+  try {
+    setStatus('Envoi à l\'admin...');
+    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdf.buffer)));
+    await submitSignedPdf(
+      {
+        templateId: state.remoteTemplateId,
+        templateName: state.templateName || 'Document',
+        pdf: pdfBase64,
+      },
+      state.authToken,
+    );
+    pushNotice('Document envoyé à l\'admin avec succès.', 'success');
+  } catch (error) {
+    pushNotice(`Envoi échoué : ${(error as Error).message}`, 'danger');
+    return;
+  }
+
+  // Consommation de l'accès
+  try {
+    const response = await consumeRemoteAccess(state.remoteTemplateId, state.authToken);
+    state.remoteAccess = {
+      allowed: false,
+      reason: 'consumed',
+      principal: response.access.principal,
+      access: response.access,
+    };
+    syncRemotePanels();
+    pushNotice('Accès consommé après signature.', 'info');
+  } catch (error) {
+    pushNotice(`Impossible de consommer l'accès: ${(error as Error).message}`, 'warning');
+  }
+}
+
+async function refreshSubmissions(silent = false) {
+  if (!state.authToken) return;
+
+  try {
+    const { submissions } = await loadAdminSubmissions(state.authToken);
+    state.submissions = submissions;
+    syncSubmissionPanel();
+    if (!silent) {
+      pushNotice(`${submissions.length} soumission(s) chargée(s).`, 'info');
+    }
+  } catch (error) {
+    if (!silent) {
+      pushNotice(`Impossible de charger les soumissions: ${(error as Error).message}`, 'danger');
+    }
+  }
+}
+
+async function downloadSubmission(id: string) {
+  if (!state.authToken) return;
+
+  try {
+    setStatus('Téléchargement de la soumission...');
+    const { pdf, filename } = await downloadAdminSubmission(id, state.authToken);
+    const bytes = Uint8Array.from(atob(pdf), (c) => c.charCodeAt(0));
+    downloadBinary(bytes, filename);
+    pushNotice('Soumission téléchargée.', 'success');
+  } catch (error) {
+    pushNotice(`Téléchargement échoué: ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function deleteSubmission(id: string) {
+  if (!state.authToken) return;
+
+  try {
+    await deleteAdminSubmission(id, state.authToken);
+    state.submissions = state.submissions.filter((s) => s.id !== id);
+    syncSubmissionPanel();
+    pushNotice('Soumission supprimée.', 'info');
+  } catch (error) {
+    pushNotice(`Suppression échouée: ${(error as Error).message}`, 'danger');
   }
 }
 

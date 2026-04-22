@@ -4,41 +4,26 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
-        <p class="eyebrow">Page 1</p>
-        <h2>Administration des templates</h2>
-        <p class="muted">Prépare le template, publie dans S3 et attribue les accès de signature.</p>
+        <p class="eyebrow">Formatage</p>
+        <h2>Créer un template</h2>
+        <p class="muted">Importez un PDF, ajoutez vos champs et sauvegardez dans S3. La gestion des accès se fait depuis l'onglet dédié.</p>
       </div>
 
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Démarrage rapide</span>
-        </div>
-        <div class="action-grid">
-          <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
-          <button class="action-button" data-action="template-json">Template JSON</button>
-          <button class="action-button" data-action="load-contract">Contrat</button>
-          <button class="action-button" data-action="load-invoice">Facture</button>
-          <button class="action-button" data-action="load-onboarding">Onboarding</button>
-          <button class="action-button" data-action="add-page">Ajouter page</button>
-        </div>
-      </div>
-
-      <div class="section-card">
+      <div class="section-card accent-card">
         <div class="section-card-head">
           <span>Base du document</span>
         </div>
         <div class="stack gap-md">
           <div class="import-stack">
             <label class="file-button">
-              Importer un template JSON
-              <input type="file" id="template-file" accept="application/json" hidden />
-            </label>
-            <label class="file-button">
               Importer mon PDF
               <input type="file" id="basepdf-file" accept="application/pdf" hidden />
             </label>
+            <label class="file-button">
+              Importer un template JSON
+              <input type="file" id="template-file" accept="application/json" hidden />
+            </label>
           </div>
-          <p class="card-note">Cette page reste centrée sur la structure du document. La publication et les accès sont gérés dans la page dédiée Accès.</p>
         </div>
       </div>
 
@@ -58,6 +43,18 @@ export function renderAdminLeft(progress: { done: number; total: number }) {
               `,
             )
             .join('')}
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head">
+          <span>Actions rapides</span>
+        </div>
+        <div class="action-grid">
+          <button class="action-button primary" data-action="interactive-pdf">PDF interactif</button>
+          <button class="action-button" data-action="add-page">Ajouter une page</button>
+          <button class="action-button" data-action="save-local">Sauvegarder</button>
+          <button class="action-button" data-action="reset-template">Réinitialiser</button>
         </div>
       </div>
 
@@ -85,8 +82,8 @@ export function renderAdminRight() {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Templates publiés</span>
-          <span class="subtle">Vercel</span>
+          <span>Templates dans S3</span>
+          <button class="mini-button" data-action="refresh-remote">Actualiser</button>
         </div>
         <div id="remote-template-list" class="summary-stack"></div>
       </div>

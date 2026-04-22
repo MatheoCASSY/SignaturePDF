@@ -2,65 +2,48 @@ export function renderUserLeft(progress: { done: number; total: number }) {
   return `
     <section class="stack gap-lg">
       <div>
-        <p class="eyebrow">Page 4</p>
-        <h2>Documents à signer</h2>
-        <p class="muted">Sélectionne un document attribué, renseigne les champs, signe puis exporte le PDF final.</p>
+        <p class="eyebrow">Signature</p>
+        <h2>Mes documents à signer</h2>
+        <p class="muted">Sélectionnez un document qui vous a été attribué, remplissez les champs demandés, signez puis envoyez-le à l'équipe FluffRadio.</p>
       </div>
 
       <div class="section-card accent-card">
         <div class="section-card-head">
-          <span>Parcours signataire</span>
-          <span class="subtle">simple et guidé</span>
+          <span>Comment procéder</span>
         </div>
         <div class="step-list">
-          <div class="step-item"><strong>1.</strong><span>Choisis un document dans ta liste.</span></div>
-          <div class="step-item"><strong>2.</strong><span>Renseigne les informations demandées dans la popup.</span></div>
-          <div class="step-item"><strong>3.</strong><span>Signe, vérifie puis télécharge le PDF à renvoyer.</span></div>
+          <div class="step-item">
+            <strong>1</strong>
+            <span>Choisissez un document dans la liste ci-dessous.</span>
+          </div>
+          <div class="step-item">
+            <strong>2</strong>
+            <span>Renseignez les champs et apposez votre signature.</span>
+          </div>
+          <div class="step-item">
+            <strong>3</strong>
+            <span>Cliquez sur <strong>Signer et envoyer</strong> pour transmettre le document.</span>
+          </div>
         </div>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Démarrage rapide</span>
-        </div>
-        <div class="action-grid">
-          <button class="action-button primary" data-action="final-pdf">PDF final</button>
-          <button class="action-button" data-action="refresh-inbox">Actualiser la liste</button>
-          <button class="action-button" data-action="preview-pdf">Apercu</button>
-          <button class="action-button" data-action="fill-example">Remplir exemple</button>
-          <button class="action-button" data-action="clear-inputs">Vider</button>
-          <button class="action-button" data-action="load-remote-template">Ouvrir par ID</button>
-        </div>
-      </div>
-
-      <div class="section-card">
-        <div class="section-card-head">
-          <span>Documents à signer</span>
-          <span class="subtle">Inbox</span>
+          <span>Documents attribués</span>
+          <button class="mini-button" data-action="refresh-inbox">Actualiser</button>
         </div>
         <div id="remote-inbox-list" class="summary-stack"></div>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Ouverture manuelle</span>
+          <span>Actions</span>
         </div>
-        <div class="stack gap-md">
-          <label class="field-stack">
-            <span>ID du template publié</span>
-            <input id="remote-template-id" type="text" placeholder="uuid du template publié" />
-          </label>
-          <div class="import-stack">
-            <label class="file-button">
-              Importer un template JSON
-              <input type="file" id="template-file" accept="application/json" hidden />
-            </label>
-            <label class="file-button">
-              Importer des inputs JSON
-              <input type="file" id="inputs-file" accept="application/json" hidden />
-            </label>
-          </div>
-          <p class="card-note">Cette zone sert surtout à l’ouverture directe d’un document. En usage normal, sélectionne d’abord un document depuis l’inbox de gauche.</p>
+        <div class="action-grid">
+          <button class="action-button primary" data-action="submit-pdf">Signer et envoyer</button>
+          <button class="action-button" data-action="final-pdf">Télécharger seulement</button>
+          <button class="action-button" data-action="preview-pdf">Aperçu</button>
+          <button class="action-button" data-action="clear-inputs">Vider les champs</button>
         </div>
       </div>
 
@@ -88,22 +71,21 @@ export function renderUserRight() {
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>Accès Cognito</span>
-          <span class="subtle">contrôle</span>
+          <span>Statut d'accès</span>
+          <span class="subtle">Cognito</span>
         </div>
         <div id="access-status" class="summary-stack"></div>
       </div>
 
       <div class="section-card">
         <div class="section-card-head">
-          <span>JSON des données</span>
+          <span>Données du formulaire</span>
           <div class="mini-actions">
             <button class="mini-button" data-action="download-inputs">Télécharger</button>
             <button class="mini-button" data-action="apply-json">Appliquer</button>
           </div>
         </div>
         <textarea id="inputs-json" spellcheck="false"></textarea>
-        <p class="card-note">Tu peux laisser la date vide dans tes données: elle sera remplie automatiquement au jour du remplissage.</p>
       </div>
 
       <div class="section-card">
@@ -121,9 +103,10 @@ export function renderUserRight() {
             <button class="ghost-button" data-action="close-document-modal">Fermer</button>
           </div>
           <div id="document-modal-content" class="summary-stack"></div>
-          <div class="modal-actions">
+          <div class="modal-actions" style="margin-top:10px">
             <button class="action-button primary" data-action="load-selected-document">Ouvrir le document</button>
-            <button class="action-button" data-action="final-pdf">Signer et exporter</button>
+            <button class="action-button primary" data-action="submit-pdf">Signer et envoyer</button>
+            <button class="action-button" data-action="final-pdf">Télécharger seulement</button>
           </div>
         </div>
       </div>
