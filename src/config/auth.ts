@@ -32,7 +32,7 @@ export const cognitoAuthConfig = {
   redirectUri: pickCurrentUrl(allowedRedirectUris),
   postLogoutRedirectUri: pickCurrentUrl(allowedLogoutUris),
   cognitoDomain: import.meta.env.VITE_COGNITO_DOMAIN || DEFAULT_COGNITO_DOMAIN,
-  adminGroup: import.meta.env.VITE_COGNITO_ADMIN_GROUP || 'pdfme-admins',
+  adminGroup: import.meta.env.VITE_COGNITO_ADMIN_GROUP || 'admins',
   responseType: 'code',
   scope: DEFAULT_COGNITO_SCOPE,
 };

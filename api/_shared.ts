@@ -1,7 +1,7 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
-const DEFAULT_ADMIN_GROUP = 'pdfme-admins';
+const DEFAULT_ADMIN_GROUP = 'admins';
 const AUTHORIZED_ROLES = new Set(['admin', 'administrator']);
 
 type AnyRecord = Record<string, unknown>;
