@@ -20,7 +20,7 @@
     "@aws-sdk/client-s3": "^3.1033.0",
     "@pdfme/common": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",
-    "jose": "^6.2.2",
+    "jose": "^5.9.6",
     "oidc-client-ts": "^3.5.0",
     "react-oidc-context": "^3.3.1",
     "typescript": "^6.0.3",
