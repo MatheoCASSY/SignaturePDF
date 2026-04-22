@@ -1,4 +1,4 @@
-import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template, type Font } from '@pdfme/common';
+import { checkTemplate, cloneDeep, getInputFromTemplate, type Template } from '@pdfme/common';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -144,13 +144,6 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
-function getFont(): Font {
-  const font = getDefaultFont();
-  // pdf-lib throws "Unknown cmap format undefined" on subset=true for some fonts
-  return Object.fromEntries(
-    Object.entries(font).map(([name, value]) => [name, { ...value, subset: false }]),
-  ) as Font;
-}
 
 async function startup() {
   await bootstrapAuth();
@@ -1494,7 +1487,7 @@ async function exportPdf(fillable: boolean) {
     : await generate({
         template,
         inputs,
-        options: { font: getFont(), title: 'pdfme-studio' },
+        options: { title: 'pdfme-studio' },
         plugins: uiPlugins,
       });
 
@@ -1549,7 +1542,7 @@ async function exportAndSubmitPdf() {
     pdf = await generate({
       template,
       inputs,
-      options: { font: getFont(), title: state.templateName || 'document-signe' },
+      options: { title: state.templateName || 'document-signe' },
       plugins: uiPlugins,
     });
   } catch (error) {
@@ -1624,7 +1617,7 @@ async function previewPdf() {
   const pdf = await generate({
     template,
     inputs,
-    options: { font: getFont(), title: 'pdfme-studio-preview' },
+    options: { title: 'pdfme-studio-preview' },
     plugins: uiPlugins,
   });
 
