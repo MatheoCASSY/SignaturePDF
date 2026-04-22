@@ -1,5 +1,4 @@
 import { checkTemplate, cloneDeep, getInputFromTemplate, type Template } from '@pdfme/common';
-import { PDFDocument as PdfLibDocument } from '@pdfme/pdf-lib';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -145,44 +144,20 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
-async function stripBrokenFonts(template: Template): Promise<Template> {
-  if (!template.font) return template;
-
-  const broken = new Set<string>();
-  const testDoc = await PdfLibDocument.create();
-
-  for (const [name, config] of Object.entries(template.font)) {
-    try {
-      const raw = config.data;
-      const fontData: ArrayBuffer =
-        typeof raw === 'string' && raw.startsWith('http')
-          ? await fetch(raw).then((r) => r.arrayBuffer())
-          : (raw as ArrayBuffer);
-      // subset:true triggers the same cmap parsing pdfme uses internally
-      await testDoc.embedFont(fontData, { subset: true });
-    } catch {
-      broken.add(name);
-      console.warn(`[pdfme] Font "${name}" has an incompatible cmap table and will be removed from this generation.`);
-    }
-  }
-
-  if (broken.size === 0) return template;
-
+function removeFontsFromTemplate(template: Template, broken: Set<string>): Template {
   const cleanFont = Object.fromEntries(
-    Object.entries(template.font).filter(([name]) => !broken.has(name))
+    Object.entries(template.font ?? {}).filter(([name]) => !broken.has(name))
   );
-
   const cleanSchemas = template.schemas.map((page) =>
     page.map((schema) => {
       const s = schema as Record<string, unknown>;
       if (typeof s.fontName === 'string' && broken.has(s.fontName)) {
-        const { fontName: _dropped, ...rest } = s;
+        const { fontName: _removed, ...rest } = s;
         return rest as typeof schema;
       }
       return schema;
     })
   );
-
   return { ...template, font: cleanFont, schemas: cleanSchemas };
 }
 
@@ -190,8 +165,44 @@ async function generatePdf(
   generate: (...args: any[]) => Promise<Uint8Array>,
   args: { template: Template; inputs: Record<string, string>[]; options: Record<string, unknown>; plugins: typeof uiPlugins }
 ): Promise<Uint8Array> {
-  const sanitized = await stripBrokenFonts(args.template);
-  return generate({ ...args, template: sanitized });
+  try {
+    return await generate(args);
+  } catch (err) {
+    if (!(err as Error).message?.includes('cmap')) throw err;
+
+    const { template, plugins } = args;
+    const fontEntries = Object.entries(template.font ?? {});
+    if (fontEntries.length === 0) throw err;
+
+    // Test each font individually with pdfme's own generate() on a blank page
+    // so broken fonts are detected using the same fontkit version as the real call
+    const blankBase = { width: 210, height: 297, padding: [0, 0, 0, 0] as [number, number, number, number] };
+    const broken = new Set<string>();
+
+    for (const [fontName, fontConfig] of fontEntries) {
+      try {
+        await generate({
+          template: {
+            basePdf: blankBase,
+            schemas: [[{ type: 'text', name: 't', position: { x: 10, y: 10 }, width: 100, height: 20, fontName }]],
+            font: { [fontName]: fontConfig },
+          },
+          inputs: [{ t: 'A' }],
+          options: {},
+          plugins,
+        });
+      } catch (fontErr) {
+        if ((fontErr as Error).message?.includes('cmap')) {
+          broken.add(fontName);
+          console.warn(`[pdfme] Font "${fontName}" incompatible (cmap), remplacée par la police par défaut.`);
+        }
+      }
+    }
+
+    if (broken.size === 0) throw err;
+
+    return generate({ ...args, template: removeFontsFromTemplate(template, broken) });
+  }
 }
 
 
