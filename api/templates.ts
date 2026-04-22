@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import type { Template } from '@pdfme/common';
+import { randomUUID } from 'crypto';
 import {
   ensureStorageReady,
   getPrincipal,
@@ -26,7 +25,7 @@ function normalizeTemplate(value: unknown) {
     throw new Error('Template invalide');
   }
 
-  return value as Template;
+  return value as unknown;
 }
 
 function toRecord(value: RemoteTemplateRecord) {
@@ -34,7 +33,7 @@ function toRecord(value: RemoteTemplateRecord) {
     id: value.id,
     name: value.name,
     status: value.status,
-    template: value.template as Template,
+    template: value.template as unknown,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     publishedAt: value.publishedAt,

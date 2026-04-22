@@ -200,7 +200,8 @@ export async function writeJsonObject(key: string, value: unknown) {
 }
 
 export function json(res: any, statusCode: number, payload: AnyRecord) {
-  res.status(statusCode).setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.statusCode = statusCode;
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.end(JSON.stringify(payload));
 }
 
