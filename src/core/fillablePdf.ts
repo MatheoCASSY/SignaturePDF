@@ -5,6 +5,13 @@ import {
   type Schema,
   type Template,
 } from '@pdfme/common';
+
+function getFontNoSubset(): Font {
+  const font = getDefaultFont();
+  return Object.fromEntries(
+    Object.entries(font).map(([name, value]) => [name, { ...value, subset: false }]),
+  ) as Font;
+}
 import { convertForPdfLayoutProps, hex2PrintingColor } from '@pdfme/schemas/utils';
 import { PDFDict, PDFDocument as PdfLibDocument, PDFFont, PDFName, TextAlignment } from '@pdfme/pdf-lib';
 
@@ -264,7 +271,7 @@ export async function generateFillablePdf(
   return generate({
     template: acroTemplate,
     inputs: normalizeInputs(inputs),
-    options: { font: getDefaultFont(), title: 'pdfme-studio-fillable' },
+    options: { font: getFontNoSubset(), title: 'pdfme-studio-fillable' },
     plugins: {
       ...plugins,
       ...fillablePlugins,

@@ -1,4 +1,4 @@
-import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template } from '@pdfme/common';
+import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template, type Font } from '@pdfme/common';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -142,6 +142,14 @@ function loadGeneratorModule() {
     }));
   }
   return generatorModulePromise;
+}
+
+function getFont(): Font {
+  const font = getDefaultFont();
+  // pdf-lib throws "Unknown cmap format undefined" on subset=true for some fonts
+  return Object.fromEntries(
+    Object.entries(font).map(([name, value]) => [name, { ...value, subset: false }]),
+  ) as Font;
 }
 
 async function startup() {
@@ -1486,7 +1494,7 @@ async function exportPdf(fillable: boolean) {
     : await generate({
         template,
         inputs,
-        options: { font: getDefaultFont(), title: 'pdfme-studio' },
+        options: { font: getFont(), title: 'pdfme-studio' },
         plugins: uiPlugins,
       });
 
@@ -1541,7 +1549,7 @@ async function exportAndSubmitPdf() {
     pdf = await generate({
       template,
       inputs,
-      options: { font: getDefaultFont(), title: state.templateName || 'document-signe' },
+      options: { font: getFont(), title: state.templateName || 'document-signe' },
       plugins: uiPlugins,
     });
   } catch (error) {
@@ -1616,7 +1624,7 @@ async function previewPdf() {
   const pdf = await generate({
     template,
     inputs,
-    options: { font: getDefaultFont(), title: 'pdfme-studio-preview' },
+    options: { font: getFont(), title: 'pdfme-studio-preview' },
     plugins: uiPlugins,
   });
 
