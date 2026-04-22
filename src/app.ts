@@ -37,6 +37,7 @@ import {
   deleteAdminSubmission,
   deleteRemoteTemplate,
   loadTemplateGrants,
+  revokeRemoteAccess,
   type TemplateGrant,
 } from './core/remote';
 import {
@@ -447,6 +448,7 @@ async function mountUi() {
     state.inputsDraft = JSON.stringify(state.inputs, null, 2);
     persistInputs(state.inputs);
     syncInputsEditor();
+    updateSignatureProgress();
   });
 
   form.onPageChange(({ currentPage, totalPages }) => {
@@ -545,9 +547,22 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
     return;
   }
 
+  if (action === 'revoke-access') {
+    const templateId = button?.dataset.templateId || '';
+    const principal = button?.dataset.principal || '';
+    const label = button?.dataset.label || principal;
+    if (templateId && principal && confirm(`Révoquer l'accès de "${label}" ?`)) {
+      await revokeAccess(templateId, principal, label);
+    }
+    return;
+  }
+
   if (action === 'delete-template') {
     const templateId = button?.dataset.templateId || '';
-    if (templateId) await deleteTemplate(templateId);
+    const name = state.remoteTemplates.find((t) => t.id === templateId)?.name || templateId;
+    if (templateId && confirm(`Supprimer le template "${name}" ? Cette action est irréversible.`)) {
+      await deleteTemplate(templateId);
+    }
     return;
   }
 
@@ -788,8 +803,9 @@ async function openInboxDocument(templateId: string, keepModalOpen = false, sile
     if (!keepModalOpen) {
       closeDocumentModal();
     }
+    updateSignatureProgress();
     if (!silent) {
-      pushNotice(`Document charge: ${template.name}`, 'success');
+      pushNotice(`Document chargé : ${template.name}`, 'success');
     }
   } catch (error) {
     if (!silent) {
@@ -1067,8 +1083,8 @@ async function loadAdminTemplate(templateId: string, templateName: string) {
 
 async function deleteTemplate(templateId: string) {
   if (!state.authToken) return;
-  const name = state.remoteTemplates.find((t) => t.id === templateId)?.name || templateId;
   try {
+    const name = state.remoteTemplates.find((t) => t.id === templateId)?.name || templateId;
     await deleteRemoteTemplate(templateId, state.authToken);
     state.remoteTemplates = state.remoteTemplates.filter((t) => t.id !== templateId);
     if (state.remoteTemplateId === templateId) {
@@ -1080,6 +1096,19 @@ async function deleteTemplate(templateId: string) {
     pushNotice(`Template supprimé : ${name}`, 'info');
   } catch (error) {
     pushNotice(`Suppression impossible : ${(error as Error).message}`, 'danger');
+  }
+}
+
+async function revokeAccess(templateId: string, principal: string, label: string) {
+  if (!state.authToken) return;
+  try {
+    await revokeRemoteAccess(templateId, principal, state.authToken);
+    state.templateGrants = state.templateGrants.filter((g) => g.principal !== principal);
+    syncGrantsPanel();
+    await refreshUserDirectory(true);
+    pushNotice(`Accès révoqué pour "${label}".`, 'info');
+  } catch (error) {
+    pushNotice(`Révocation impossible : ${(error as Error).message}`, 'danger');
   }
 }
 
@@ -1112,25 +1141,37 @@ function syncGrantsPanel() {
     return;
   }
 
+  const selectedTemplate = state.remoteTemplates.find((t) => t.id === state.remoteTemplateId);
   panel.innerHTML = state.templateGrants
     .map((grant) => {
-      const status = grant.consumedAt
-        ? `<span class="status-badge signed">Signé</span>`
+      const user = state.remoteUsers.find((u) => u.principal === grant.principal);
+      const displayName = user?.label || user?.email || user?.username || grant.principal;
+      const templateName = selectedTemplate?.name || state.templateName || grant.templateId;
+      const grantDate = new Date(grant.grantedAt).toLocaleDateString('fr-FR');
+      const signedDate = grant.consumedAt ? new Date(grant.consumedAt).toLocaleDateString('fr-FR') : null;
+      const status = signedDate
+        ? `<span class="status-badge signed">Signé le ${signedDate}</span>`
         : grant.active
           ? `<span class="status-badge pending">En attente</span>`
           : `<span class="status-badge expired">Expiré</span>`;
-      const date = new Date(grant.grantedAt).toLocaleDateString('fr-FR');
+      const revokeBtn = !grant.consumedAt
+        ? `<button class="mini-button danger" data-action="revoke-access" data-template-id="${escapeHtml(grant.templateId)}" data-principal="${escapeHtml(grant.principal)}" data-label="${escapeHtml(displayName)}">Révoquer</button>`
+        : '';
       return `
         <div class="summary-row">
           <div>
-            <strong>${escapeHtml(grant.principal)}</strong>
-            <span>${date} · ${grant.usedCount}/${grant.maxUses} utilisation(s)</span>
+            <strong>${escapeHtml(templateName)} — ${escapeHtml(displayName)}</strong>
+            <span>Attribué le ${grantDate} · ${grant.usedCount}/${grant.maxUses} signature(s)</span>
           </div>
-          ${status}
+          <div style="display:flex;gap:6px;align-items:center">${status}${revokeBtn}</div>
         </div>
       `;
     })
     .join('');
+
+  panel.querySelectorAll<HTMLButtonElement>('[data-action="revoke-access"]').forEach((btn) => {
+    btn.addEventListener('click', () => handleAction('revoke-access', btn));
+  });
 }
 
 async function loadPublishedTemplate(silent = false) {
@@ -1278,7 +1319,7 @@ function syncRemotePanels() {
             (entry) => `
               <button class="summary-row inbox-row ${entry.template.id === state.selectedInboxTemplateId ? 'active' : ''}" data-action="open-inbox-template" data-template-id="${escapeHtml(entry.template.id)}">
                 <strong>${escapeHtml(entry.template.name)}</strong>
-                <span>${escapeHtml(entry.access.principal)} · ${entry.access.usedCount}/${entry.access.maxUses}</span>
+                <span>Attribué le ${new Date(entry.access.grantedAt).toLocaleDateString('fr-FR')} · ${entry.access.usedCount}/${entry.access.maxUses} signature(s)</span>
               </button>
             `,
           )
@@ -1525,11 +1566,14 @@ async function exportAndSubmitPdf() {
       principal: response.access.principal,
       access: response.access,
     };
-    await refreshRemoteInbox(true);
+    if (!stillActive) {
+      state.remoteInbox = state.remoteInbox.filter((d) => d.template.id !== state.remoteTemplateId);
+    }
+    syncRemotePanels();
     pushNotice(
       stillActive
         ? `Signature envoyée. Il te reste ${response.access.maxUses - response.access.usedCount} envoi(s) disponible(s).`
-        : 'Document signé et envoyé. Accès consommé.',
+        : 'Document signé et envoyé avec succès.',
       'success',
     );
   } catch (error) {
@@ -1679,11 +1723,58 @@ function setStatus(message: string) {
   title.setAttribute('title', message);
 }
 
+function updateSignatureProgress() {
+  if (state.route !== 'user') return;
+
+  const decorative = new Set(['line', 'rectangle', 'ellipse', 'svg']);
+  const allFields = state.template.schemas
+    .flatMap((page) => page)
+    .filter((f) => !decorative.has((f as Record<string, unknown>).type as string));
+  const total = allFields.length;
+
+  const filled = allFields.filter((f) => {
+    const val = state.inputs
+      .flatMap((page) => Object.entries(page))
+      .find(([k]) => k === f.name)?.[1];
+    return val !== undefined && String(val).trim().length > 0;
+  }).length;
+
+  const percent = total > 0 ? Math.round((filled / total) * 100) : 0;
+  const hasDoc = Boolean(state.remoteTemplateId);
+  const allFilled = total > 0 && filled >= total;
+
+  const docCard = document.querySelector<HTMLElement>('#active-doc-card');
+  const docName = document.querySelector<HTMLElement>('#active-doc-name');
+  const docMeta = document.querySelector<HTMLElement>('#active-doc-meta');
+  if (docCard) docCard.classList.toggle('hidden', !hasDoc);
+  if (docName) docName.textContent = state.templateName || 'Document';
+  if (docMeta) docMeta.textContent = total > 0 ? `${total} champ(s) à remplir` : 'Prêt à signer';
+
+  const progressSection = document.querySelector<HTMLElement>('#fill-progress-section');
+  const bar = document.querySelector<HTMLElement>('#fill-progress-bar');
+  const label = document.querySelector<HTMLElement>('#fill-progress-label');
+  if (progressSection) progressSection.classList.toggle('hidden', !hasDoc || total === 0);
+  if (bar) bar.style.width = `${percent}%`;
+  if (bar) bar.style.background = allFilled ? 'linear-gradient(90deg,#22c55e,#16a34a)' : '';
+  if (label) label.textContent = total > 0 ? `${filled} / ${total} champs` : '';
+
+  document.querySelector('#sig-step-1')?.classList.toggle('done', hasDoc);
+  document.querySelector('#sig-step-2')?.classList.toggle('done', allFilled);
+  document.querySelector('#sig-step-3')?.classList.toggle('ready', hasDoc);
+
+  const sendBtn = document.querySelector<HTMLButtonElement>('#submit-btn');
+  if (sendBtn) {
+    sendBtn.disabled = !hasDoc;
+    sendBtn.classList.toggle('pulse', allFilled && hasDoc);
+  }
+}
+
 function syncEditors() {
   syncTemplateEditor();
   syncInputsEditor();
   syncAdminFields();
   syncRemotePanels();
+  updateSignatureProgress();
 }
 
 function syncTemplateEditor() {

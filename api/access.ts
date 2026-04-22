@@ -344,10 +344,10 @@ export default async function handler(req: any, res: any) {
         return;
       }
 
-      const foundAccess = principal.isAdmin ? null : await loadFirstAccess(templateId, principal);
+      const foundAccess = await loadFirstAccess(templateId, principal);
       const accessRow = foundAccess?.access || null;
       const access = accessRow ? toAccessRecord(accessRow) : null;
-      const isAllowed = principal.isAdmin || Boolean(access && !access.consumedAt && (!access.expiresAt || new Date(access.expiresAt).getTime() > Date.now()));
+      const isAllowed = principal.isAdmin || isAccessActive(access);
 
       if (templateRow.status !== 'published' && !principal.isAdmin) {
         json(res, 403, { allowed: false, reason: 'template-not-published', principal: key, access: null });
@@ -454,6 +454,26 @@ export default async function handler(req: any, res: any) {
       await writeJsonObject(accessObjectKey(templateId, accessKey), consumed);
 
       json(res, 200, { access: toAccessRecord(consumed) });
+      return;
+    }
+
+    if (req.method === 'DELETE') {
+      if (!principal?.isAdmin) {
+        json(res, 401, { error: 'Accès admin requis' });
+        return;
+      }
+
+      const url2 = new URL(req.url, 'http://localhost');
+      const delTemplateId = url2.searchParams.get('templateId') || '';
+      const delPrincipal = url2.searchParams.get('principal') || '';
+      if (!delTemplateId || !delPrincipal) {
+        json(res, 400, { error: 'templateId et principal requis' });
+        return;
+      }
+
+      const key = accessObjectKey(delTemplateId, delPrincipal);
+      await deleteObject(key);
+      json(res, 200, { ok: true });
       return;
     }
 

@@ -198,6 +198,13 @@ export type TemplateGrant = {
   active: boolean;
 };
 
+export function revokeRemoteAccess(templateId: string, principal: string, token: string) {
+  return requestJson<{ ok: boolean }>(
+    `/api/access?templateId=${encodeURIComponent(templateId)}&principal=${encodeURIComponent(principal)}`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
+  );
+}
+
 export function loadTemplateGrants(templateId: string, token: string) {
   return requestJson<{ grants: TemplateGrant[] }>(
     `/api/access?mode=template-grants&templateId=${encodeURIComponent(templateId)}`,

@@ -4,25 +4,41 @@ export function renderUserLeft() {
       <div>
         <p class="eyebrow">Signature</p>
         <h2>Mes documents à signer</h2>
-        <p class="muted">Sélectionnez un document qui vous a été attribué, remplissez les champs demandés, signez puis envoyez-le à l'équipe FluffRadio.</p>
+        <p class="muted">Sélectionnez un document, remplissez les champs et envoyez.</p>
       </div>
 
-      <div class="section-card accent-card">
-        <div class="section-card-head">
-          <span>Comment procéder</span>
+      <div id="active-doc-card" class="active-doc-card hidden">
+        <div class="active-doc-icon">📄</div>
+        <div class="active-doc-body">
+          <strong id="active-doc-name">Document</strong>
+          <span id="active-doc-meta">—</span>
         </div>
+      </div>
+
+      <div id="fill-progress-section" class="section-card hidden">
+        <div class="section-card-head">
+          <span>Avancement</span>
+          <span id="fill-progress-label" class="muted small">—</span>
+        </div>
+        <div class="progress-track">
+          <div id="fill-progress-bar" class="progress-bar" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-head"><span>Étapes</span></div>
         <div class="step-list">
-          <div class="step-item">
-            <strong>1</strong>
-            <span>Choisissez un document dans la liste ci-dessous.</span>
+          <div class="step-item sig-step" id="sig-step-1">
+            <div class="step-num">1</div>
+            <span>Choisissez un document dans la liste ci-dessous</span>
           </div>
-          <div class="step-item">
-            <strong>2</strong>
-            <span>Renseignez les champs et apposez votre signature.</span>
+          <div class="step-item sig-step" id="sig-step-2">
+            <div class="step-num">2</div>
+            <span>Remplissez tous les champs et apposez votre signature</span>
           </div>
-          <div class="step-item">
-            <strong>3</strong>
-            <span>Cliquez sur <strong>Signer et envoyer</strong> pour transmettre le document.</span>
+          <div class="step-item sig-step" id="sig-step-3">
+            <div class="step-num">3</div>
+            <span>Cliquez sur <strong>Signer et envoyer</strong></span>
           </div>
         </div>
       </div>
@@ -36,11 +52,8 @@ export function renderUserLeft() {
       </div>
 
       <div class="section-card">
-        <div class="section-card-head">
-          <span>Actions</span>
-        </div>
         <div class="action-grid">
-          <button class="action-button primary" data-action="submit-pdf">Signer et envoyer</button>
+          <button class="action-button primary" id="submit-btn" data-action="submit-pdf" disabled>Signer et envoyer</button>
           <button class="action-button" data-action="preview-pdf">Aperçu</button>
           <button class="action-button" data-action="clear-inputs">Vider les champs</button>
         </div>
