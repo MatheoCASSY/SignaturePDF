@@ -36,7 +36,7 @@ export function renderAppShell(props: LayoutProps) {
         ${renderHeader(props.route, props.pageCount, props.fieldCount, props.auth)}
 
         <main class="workspace workspace-access">
-          <aside class="panel sidebar left-sidebar">${renderAccessLeft(props.progress)}</aside>
+          <aside class="panel sidebar left-sidebar">${renderAccessLeft()}</aside>
           <aside class="panel sidebar right-sidebar access-right">${renderAccessRight()}</aside>
         </main>
       </div>

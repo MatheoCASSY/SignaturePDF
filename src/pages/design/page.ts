@@ -80,10 +80,25 @@ export function renderAdminRight() {
         <div id="template-summary" class="summary-stack"></div>
       </div>
 
+      <div class="section-card accent-card">
+        <div class="section-card-head">
+          <span>Sauvegarder dans S3</span>
+        </div>
+        <div class="stack gap-md">
+          <label class="field-stack">
+            <span>Nom du template</span>
+            <input id="template-name" type="text" placeholder="Ex : Contrat bénévole 2025" />
+          </label>
+          <div class="action-grid">
+            <button class="action-button primary" data-action="publish-template">Sauvegarder dans S3</button>
+            <button class="action-button" data-action="refresh-remote">Actualiser</button>
+          </div>
+        </div>
+      </div>
+
       <div class="section-card">
         <div class="section-card-head">
           <span>Templates dans S3</span>
-          <button class="mini-button" data-action="refresh-remote">Actualiser</button>
         </div>
         <div id="remote-template-list" class="summary-stack"></div>
       </div>

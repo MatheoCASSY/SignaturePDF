@@ -523,6 +523,17 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
     return;
   }
 
+  if (action === 'grant-access') {
+    await grantAccess();
+    return;
+  }
+
+  if (action === 'select-access-template') {
+    const templateId = button?.dataset.templateId || '';
+    if (templateId) selectAccessTemplate(templateId);
+    return;
+  }
+
   if (action === 'load-remote-template') {
     await loadPublishedTemplate();
     return;
@@ -932,7 +943,7 @@ async function refreshUserDirectory(silent = false) {
 
 async function publishCurrentTemplate() {
   if (!state.authToken) {
-    pushNotice('Ajoute un jeton Cognito admin avant de publier.', 'warning');
+    pushNotice('Connexion requise pour sauvegarder dans S3.', 'warning');
     return;
   }
 
@@ -953,33 +964,64 @@ async function publishCurrentTemplate() {
     persistRemoteTemplateId(state.remoteTemplateId);
     persistTemplateName(state.templateName);
     syncAdminFields();
-
-    const principals = getAccessPrincipals();
-    if (principals.length > 0) {
-      await Promise.allSettled(
-        principals.map((principal) => {
-          const user = state.remoteUsers.find((entry) => entry.principal === principal);
-          return grantRemoteAccess(
-            {
-              templateId: result.template.id,
-              principal,
-              label: user?.label || principal,
-              maxUses: state.adminAccessMaxUses,
-            },
-            state.authToken,
-          );
-        }),
-      );
-    }
-
-    await refreshRemoteTemplates();
-    await refreshRemoteInbox();
-    await refreshUserDirectory(true);
-    await refreshRemoteAccessStatus(true);
-    pushNotice(`Template publie: ${result.template.id}`, 'success');
+    await refreshRemoteTemplates(true);
+    pushNotice(`Template sauvegardé dans S3 : ${result.template.id}`, 'success');
   } catch (error) {
-    pushNotice(`Publication impossible: ${(error as Error).message}`, 'danger');
+    pushNotice(`Sauvegarde impossible : ${(error as Error).message}`, 'danger');
   }
+}
+
+async function grantAccess() {
+  if (!state.authToken) {
+    pushNotice('Connexion requise pour accorder l\'accès.', 'warning');
+    return;
+  }
+
+  if (!state.remoteTemplateId) {
+    pushNotice('Sélectionnez d\'abord un template dans la liste.', 'warning');
+    return;
+  }
+
+  const principals = state.selectedAccessPrincipals;
+  if (!principals.length) {
+    pushNotice('Sélectionnez au moins un signataire dans la liste.', 'warning');
+    return;
+  }
+
+  try {
+    const results = await Promise.allSettled(
+      principals.map((principal) => {
+        const user = state.remoteUsers.find((entry) => entry.principal === principal);
+        return grantRemoteAccess(
+          {
+            templateId: state.remoteTemplateId,
+            principal,
+            label: user?.label || principal,
+            maxUses: state.adminAccessMaxUses,
+          },
+          state.authToken,
+        );
+      }),
+    );
+
+    const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.length - succeeded;
+    state.selectedAccessPrincipals = [];
+    syncAdminFields();
+    await refreshUserDirectory(true);
+    pushNotice(`Accès accordé à ${succeeded} signataire(s)${failed ? `, ${failed} échec(s)` : ''}.`, succeeded > 0 ? 'success' : 'danger');
+  } catch (error) {
+    pushNotice(`Impossible d'accorder l'accès : ${(error as Error).message}`, 'danger');
+  }
+}
+
+function selectAccessTemplate(templateId: string) {
+  state.remoteTemplateId = templateId;
+  persistRemoteTemplateId(templateId);
+  syncAdminFields();
+  syncRemotePanels();
+  void refreshUserDirectory(true);
+  pushNotice(`Template sélectionné : ${templateId}`, 'info');
 }
 
 async function loadPublishedTemplate(silent = false) {
@@ -1077,18 +1119,34 @@ function syncAdminFields() {
 function syncRemotePanels() {
   const remoteTemplateList = document.querySelector<HTMLDivElement>('#remote-template-list');
   if (remoteTemplateList) {
-    remoteTemplateList.innerHTML = state.remoteTemplates.length
-      ? state.remoteTemplates
-          .map(
-            (template) => `
-              <div class="summary-row">
-                <strong>${escapeHtml(template.name)}</strong>
-                <span>${escapeHtml(template.id)}</span>
-              </div>
-            `,
-          )
-          .join('')
-      : '<p class="notice-empty">Aucun template publie pour le moment.</p>';
+    if (!state.remoteTemplates.length) {
+      remoteTemplateList.innerHTML = '<p class="notice-empty">Aucun template publié pour le moment.</p>';
+    } else if (state.route === 'access') {
+      remoteTemplateList.innerHTML = state.remoteTemplates
+        .map(
+          (template) => `
+            <button class="summary-row inbox-row ${template.id === state.remoteTemplateId ? 'active' : ''}" data-action="select-access-template" data-template-id="${escapeHtml(template.id)}">
+              <strong>${escapeHtml(template.name)}</strong>
+              <span>${escapeHtml(template.id)}</span>
+            </button>
+          `,
+        )
+        .join('');
+      remoteTemplateList.querySelectorAll<HTMLButtonElement>('[data-action="select-access-template"]').forEach((button) => {
+        button.addEventListener('click', () => handleAction('select-access-template', button));
+      });
+    } else {
+      remoteTemplateList.innerHTML = state.remoteTemplates
+        .map(
+          (template) => `
+            <div class="summary-row">
+              <strong>${escapeHtml(template.name)}</strong>
+              <span>${escapeHtml(template.id)}</span>
+            </div>
+          `,
+        )
+        .join('');
+    }
   }
 
   const remoteInboxList = document.querySelector<HTMLDivElement>('#remote-inbox-list');
