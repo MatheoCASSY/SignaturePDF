@@ -538,6 +538,13 @@ async function handleAction(action: string, button?: HTMLButtonElement) {
     return;
   }
 
+  if (action === 'load-admin-template') {
+    const templateId = button?.dataset.templateId || '';
+    const templateName = button?.dataset.templateName || '';
+    if (templateId) await loadAdminTemplate(templateId, templateName);
+    return;
+  }
+
   if (action === 'delete-template') {
     const templateId = button?.dataset.templateId || '';
     if (templateId) await deleteTemplate(templateId);
@@ -1038,6 +1045,26 @@ async function selectAccessTemplate(templateId: string) {
   await Promise.all([refreshUserDirectory(true), refreshTemplateGrants(true)]);
 }
 
+async function loadAdminTemplate(templateId: string, templateName: string) {
+  if (!state.authToken) {
+    pushNotice('Connexion requise pour charger un template.', 'warning');
+    return;
+  }
+
+  try {
+    const { template } = await loadRemoteTemplate(templateId, state.authToken);
+    state.remoteTemplateId = templateId;
+    state.templateName = template.name || templateName;
+    persistRemoteTemplateId(templateId);
+    persistTemplateName(state.templateName);
+    applyTemplate(template.template, true);
+    syncAdminFields();
+    pushNotice(`Template "${state.templateName}" chargé — modifiez-le puis cliquez sur Sauvegarder dans S3.`, 'success');
+  } catch (error) {
+    pushNotice(`Impossible de charger le template : ${(error as Error).message}`, 'danger');
+  }
+}
+
 async function deleteTemplate(templateId: string) {
   if (!state.authToken) return;
   const name = state.remoteTemplates.find((t) => t.id === templateId)?.name || templateId;
@@ -1226,11 +1253,17 @@ function syncRemotePanels() {
                 <strong>${escapeHtml(template.name)}</strong>
                 <span>${escapeHtml(template.id)}</span>
               </div>
-              <button class="mini-button danger" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Supprimer</button>
+              <div style="display:flex;gap:6px">
+                <button class="mini-button" data-action="load-admin-template" data-template-id="${escapeHtml(template.id)}" data-template-name="${escapeHtml(template.name)}">Charger</button>
+                <button class="mini-button danger" data-action="delete-template" data-template-id="${escapeHtml(template.id)}">Supprimer</button>
+              </div>
             </div>
           `,
         )
         .join('');
+      remoteTemplateList.querySelectorAll<HTMLButtonElement>('[data-action="load-admin-template"]').forEach((button) => {
+        button.addEventListener('click', async () => handleAction('load-admin-template', button));
+      });
       remoteTemplateList.querySelectorAll<HTMLButtonElement>('[data-action="delete-template"]').forEach((button) => {
         button.addEventListener('click', async () => handleAction('delete-template', button));
       });
@@ -1440,18 +1473,22 @@ async function exportAndSubmitPdf() {
     return;
   }
 
-  const template = currentTemplate();
-  const inputs = currentInputs(template);
-  const { generate } = await loadGeneratorModule();
-
-  setStatus('Génération du PDF...');
-
-  const pdf = await generate({
-    template,
-    inputs,
-    options: { font: getDefaultFont(), title: state.templateName || 'document-signe' },
-    plugins: uiPlugins,
-  });
+  let pdf: Uint8Array;
+  try {
+    const template = currentTemplate();
+    const inputs = currentInputs(template);
+    const { generate } = await loadGeneratorModule();
+    setStatus('Génération du PDF...');
+    pdf = await generate({
+      template,
+      inputs,
+      options: { font: getDefaultFont(), title: state.templateName || 'document-signe' },
+      plugins: uiPlugins,
+    });
+  } catch (error) {
+    pushNotice(`Erreur génération PDF : ${(error as Error).message}`, 'danger');
+    return;
+  }
 
   // Téléchargement local
   const safeName = (state.templateName || 'document').replace(/[^a-zA-Z0-9\u00C0-\u024F\-_ ]/g, '_');
@@ -1461,7 +1498,9 @@ async function exportAndSubmitPdf() {
   // Envoi à l'admin via S3
   try {
     setStatus('Envoi à l\'admin...');
-    const pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(pdf.buffer)));
+    let binary = '';
+    for (let i = 0; i < pdf.length; i++) binary += String.fromCharCode(pdf[i]);
+    const pdfBase64 = btoa(binary);
     await submitSignedPdf(
       {
         templateId: state.remoteTemplateId,
@@ -1479,14 +1518,20 @@ async function exportAndSubmitPdf() {
   // Consommation de l'accès
   try {
     const response = await consumeRemoteAccess(state.remoteTemplateId, state.authToken);
+    const stillActive = !response.access.consumedAt && response.access.usedCount < response.access.maxUses;
     state.remoteAccess = {
-      allowed: false,
-      reason: 'consumed',
+      allowed: stillActive,
+      reason: stillActive ? 'granted' : 'consumed',
       principal: response.access.principal,
       access: response.access,
     };
-    syncRemotePanels();
-    pushNotice('Accès consommé après signature.', 'info');
+    await refreshRemoteInbox(true);
+    pushNotice(
+      stillActive
+        ? `Signature envoyée. Il te reste ${response.access.maxUses - response.access.usedCount} envoi(s) disponible(s).`
+        : 'Document signé et envoyé. Accès consommé.',
+      'success',
+    );
   } catch (error) {
     pushNotice(`Impossible de consommer l'accès: ${(error as Error).message}`, 'warning');
   }
