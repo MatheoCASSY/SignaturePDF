@@ -437,7 +437,7 @@ async function mountUi() {
     domContainer: mount,
     template: state.template,
     inputs: ensureInputs(state.template, state.inputs),
-    options: commonOptions,
+    options: { lang: state.lang, ...FORM_OPTIONS },
     plugins: uiPlugins,
   }) as unknown as FormLike;
 
