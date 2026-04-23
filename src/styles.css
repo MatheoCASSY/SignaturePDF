@@ -524,8 +524,12 @@ textarea { min-height: 160px; resize: vertical; }
 }
 
 .login-brand-logo {
-  height: 52px;
+  display: block;
+  height: auto;
   width: auto;
+  max-height: 52px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .login-headline {
