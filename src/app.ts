@@ -144,47 +144,85 @@ function loadGeneratorModule() {
   return generatorModulePromise;
 }
 
-function removeFontsFromTemplate(template: Template, broken: Set<string>): Template {
-  const cleanFont = Object.fromEntries(
-    Object.entries(template.font ?? {}).filter(([name]) => !broken.has(name))
-  );
-  const cleanSchemas = template.schemas.map((page) =>
+function stripAllFontRefs(template: Template): Template {
+  const schemas = template.schemas.map((page) =>
     page.map((schema) => {
       const s = schema as Record<string, unknown>;
-      if (typeof s.fontName === 'string' && broken.has(s.fontName)) {
-        const { fontName: _removed, ...rest } = s;
+      if ('fontName' in s) {
+        const { fontName: _f, ...rest } = s;
         return rest as typeof schema;
       }
       return schema;
     })
   );
-  return { ...template, font: cleanFont, schemas: cleanSchemas };
+  return { ...template, font: {}, schemas };
+}
+
+async function prefetchFonts(
+  font: Record<string, any>
+): Promise<{ font: Record<string, any>; failed: Set<string> }> {
+  const result: Record<string, any> = {};
+  const failed = new Set<string>();
+  await Promise.all(
+    Object.entries(font).map(async ([name, cfg]) => {
+      if (typeof cfg?.data === 'string' && cfg.data.startsWith('http')) {
+        try {
+          const buf = await fetch(cfg.data).then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.arrayBuffer();
+          });
+          result[name] = { ...cfg, data: buf };
+        } catch {
+          console.warn(`[pdfme] Police "${name}" : chargement échoué, ignorée.`);
+          failed.add(name);
+        }
+      } else {
+        result[name] = cfg;
+      }
+    })
+  );
+  return { font: result, failed };
 }
 
 async function generatePdf(
   generate: (...args: any[]) => Promise<Uint8Array>,
   args: { template: Template; inputs: Record<string, string>[]; options: Record<string, unknown>; plugins: typeof uiPlugins }
 ): Promise<Uint8Array> {
-  try {
-    return await generate(args);
-  } catch {
-    // Étape 1 : désactiver le subsetting pour toutes les polices (évite les erreurs cmap)
-    const fontEntries = Object.entries(args.template.font ?? {});
-    if (fontEntries.length > 0) {
-      const noSubsetFont = Object.fromEntries(
-        fontEntries.map(([name, cfg]) => [name, { ...(cfg as object), subset: false }])
-      );
-      try {
-        return await generate({ ...args, template: { ...args.template, font: noSubsetFont } });
-      } catch {
-        // Étape 2 : supprimer toutes les polices personnalisées, utiliser la police pdfme par défaut
-        const allFontNames = new Set(fontEntries.map(([n]) => n));
-        return generate({ ...args, template: removeFontsFromTemplate(args.template, allFontNames) });
-      }
-    }
-    // Aucune police personnalisée, relancer l'erreur d'origine
-    return generate(args);
+  // Pré-charger les polices HTTP et écarter celles qui échouent
+  const { font: fetchedFont, failed } = await prefetchFonts(args.template.font ?? {});
+  let template: Template = { ...args.template, font: fetchedFont };
+  if (failed.size > 0) {
+    const schemas = template.schemas.map((page) =>
+      page.map((schema) => {
+        const s = schema as Record<string, unknown>;
+        if (typeof s.fontName === 'string' && failed.has(s.fontName)) {
+          const { fontName: _f, ...rest } = s;
+          return rest as typeof schema;
+        }
+        return schema;
+      })
+    );
+    template = { ...template, schemas };
   }
+
+  // Tentative 1 : génération normale
+  try {
+    return await generate({ ...args, template });
+  } catch { /* suite */ }
+
+  // Tentative 2 : subset: false sur toutes les polices
+  const fontEntries = Object.entries(template.font ?? {});
+  if (fontEntries.length > 0) {
+    const noSubsetFont = Object.fromEntries(
+      fontEntries.map(([n, cfg]) => [n, { ...(cfg as object), subset: false }])
+    );
+    try {
+      return await generate({ ...args, template: { ...template, font: noSubsetFont } });
+    } catch { /* suite */ }
+  }
+
+  // Tentative 3 : supprimer toutes les polices + toutes les fontName des schemas
+  return generate({ ...args, template: stripAllFontRefs(template) });
 }
 
 
