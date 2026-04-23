@@ -1610,6 +1610,20 @@ async function exportAndSubmitPdf() {
   downloadBinary(pdf, `${safeName}.pdf`);
 
   try {
+    let binary = '';
+    pdf.forEach((b) => (binary += String.fromCharCode(b)));
+    const base64 = btoa(binary);
+    await submitSignedPdf(
+      { templateId: state.remoteTemplateId, templateName: state.templateName || safeName, pdf: base64 },
+      state.authToken,
+    );
+    pushNotice('Document envoyé avec succès.', 'success');
+  } catch (error) {
+    pushNotice(`Envoi échoué : ${(error as Error).message}`, 'danger');
+    return;
+  }
+
+  try {
     const response = await consumeRemoteAccess(state.remoteTemplateId, state.authToken);
     const stillActive = !response.access.consumedAt && response.access.usedCount < response.access.maxUses;
     if (!stillActive) {
