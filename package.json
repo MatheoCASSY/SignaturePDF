@@ -22,6 +22,7 @@
     "@pdfme/common": "^6.0.6",
     "@pdfme/generator": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",
+    "brew": "^0.0.8",
     "jose": "^5.9.6",
     "oidc-client-ts": "^3.5.0",
     "react-oidc-context": "^3.3.1",

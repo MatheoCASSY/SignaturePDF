@@ -1481,19 +1481,50 @@ function syncSubmissionPanel() {
     return;
   }
 
-  submissionList.innerHTML = state.submissions
-    .map((s) => {
-      const date = new Date(s.submittedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+  const focusedPrincipal = state.selectedAccessPrincipals.length === 1 ? state.selectedAccessPrincipals[0] : null;
+  const visible = focusedPrincipal
+    ? state.submissions.filter((s) => s.principal === focusedPrincipal)
+    : state.submissions;
+
+  if (!visible.length) {
+    submissionList.innerHTML = '<p class="notice-empty">Aucun document signé pour cet utilisateur.</p>';
+    return;
+  }
+
+  const grouped = new Map<string, typeof visible>();
+  visible.forEach((s) => {
+    const list = grouped.get(s.principal) ?? [];
+    list.push(s);
+    grouped.set(s.principal, list);
+  });
+
+  const renderRow = (s: (typeof visible)[0]) => {
+    const date = new Date(s.submittedAt).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+    return `
+      <div class="summary-row submission-row" style="padding-left:12px">
+        <div class="submission-info">
+          <strong>${escapeHtml(s.templateName)}</strong>
+          <span>${escapeHtml(date)}</span>
+        </div>
+        <div class="submission-actions">
+          <button class="mini-button" data-action="download-submission" data-submission-id="${escapeHtml(s.id)}">Télécharger</button>
+          <button class="mini-button danger" data-action="delete-submission" data-submission-id="${escapeHtml(s.id)}">Supprimer</button>
+        </div>
+      </div>
+    `;
+  };
+
+  submissionList.innerHTML = Array.from(grouped.entries())
+    .map(([principal, subs]) => {
+      const user = state.remoteUsers.find((u) => u.principal === principal);
+      const displayName = user?.label || user?.email || user?.username || principal;
       return `
-        <div class="summary-row submission-row">
-          <div class="submission-info">
-            <strong>${escapeHtml(s.templateName)}</strong>
-            <span>${escapeHtml(s.principal)} · ${escapeHtml(date)}</span>
+        <div class="submission-user-group">
+          <div class="summary-row" style="background:var(--surface-2,#f5f5f5);font-weight:600">
+            <span>${escapeHtml(displayName)}</span>
+            <span class="muted small">${subs.length} document(s)</span>
           </div>
-          <div class="submission-actions">
-            <button class="mini-button" data-action="download-submission" data-submission-id="${escapeHtml(s.id)}">Télécharger</button>
-            <button class="mini-button danger" data-action="delete-submission" data-submission-id="${escapeHtml(s.id)}">Supprimer</button>
-          </div>
+          ${subs.map(renderRow).join('')}
         </div>
       `;
     })
