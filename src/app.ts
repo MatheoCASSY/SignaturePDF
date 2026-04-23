@@ -1,4 +1,4 @@
-import { checkTemplate, cloneDeep, getInputFromTemplate, type Template } from '@pdfme/common';
+import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template } from '@pdfme/common';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -221,8 +221,12 @@ async function generatePdf(
     } catch { /* suite */ }
   }
 
-  // Tentative 3 : supprimer toutes les polices + toutes les fontName des schemas
-  return generate({ ...args, template: stripAllFontRefs(template) });
+  // Tentative 3 : supprimer toutes les polices custom + injecter la police locale par défaut avec subset:false
+  // Cela garantit que pdfme n'essaie pas de charger des fonts depuis le CDN
+  const safeFont = Object.fromEntries(
+    Object.entries(getDefaultFont()).map(([n, cfg]) => [n, { ...(cfg as object), subset: false }])
+  );
+  return generate({ ...args, template: { ...stripAllFontRefs(template), font: safeFont } });
 }
 
 
