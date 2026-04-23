@@ -167,41 +167,23 @@ async function generatePdf(
 ): Promise<Uint8Array> {
   try {
     return await generate(args);
-  } catch (err) {
-    if (!(err as Error).message?.includes('cmap')) throw err;
-
-    const { template, plugins } = args;
-    const fontEntries = Object.entries(template.font ?? {});
-    if (fontEntries.length === 0) throw err;
-
-    // Test each font individually with pdfme's own generate() on a blank page
-    // so broken fonts are detected using the same fontkit version as the real call
-    const blankBase = { width: 210, height: 297, padding: [0, 0, 0, 0] as [number, number, number, number] };
-    const broken = new Set<string>();
-
-    for (const [fontName, fontConfig] of fontEntries) {
+  } catch {
+    // Étape 1 : désactiver le subsetting pour toutes les polices (évite les erreurs cmap)
+    const fontEntries = Object.entries(args.template.font ?? {});
+    if (fontEntries.length > 0) {
+      const noSubsetFont = Object.fromEntries(
+        fontEntries.map(([name, cfg]) => [name, { ...(cfg as object), subset: false }])
+      );
       try {
-        await generate({
-          template: {
-            basePdf: blankBase,
-            schemas: [[{ type: 'text', name: 't', position: { x: 10, y: 10 }, width: 100, height: 20, fontName }]],
-            font: { [fontName]: fontConfig },
-          },
-          inputs: [{ t: 'A' }],
-          options: {},
-          plugins,
-        });
-      } catch (fontErr) {
-        if ((fontErr as Error).message?.includes('cmap')) {
-          broken.add(fontName);
-          console.warn(`[pdfme] Font "${fontName}" incompatible (cmap), remplacée par la police par défaut.`);
-        }
+        return await generate({ ...args, template: { ...args.template, font: noSubsetFont } });
+      } catch {
+        // Étape 2 : supprimer toutes les polices personnalisées, utiliser la police pdfme par défaut
+        const allFontNames = new Set(fontEntries.map(([n]) => n));
+        return generate({ ...args, template: removeFontsFromTemplate(args.template, allFontNames) });
       }
     }
-
-    if (broken.size === 0) throw err;
-
-    return generate({ ...args, template: removeFontsFromTemplate(template, broken) });
+    // Aucune police personnalisée, relancer l'erreur d'origine
+    return generate(args);
   }
 }
 
