@@ -1,4 +1,5 @@
 import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const DEFAULT_ADMIN_GROUP = 'admins';
@@ -305,6 +306,15 @@ export function principalKey(principal: { sub: string; email: string }) {
 export function principalCandidates(principal: { sub: string; email: string }) {
   const values = [principal.sub, principal.email].map((value) => String(value || '').trim()).filter(Boolean);
   return Array.from(new Set(values));
+}
+
+export async function createPresignedPutUrl(key: string, expiresIn = 300) {
+  const command = new PutObjectCommand({
+    Bucket: getBucketName(),
+    Key: key,
+    ContentType: 'application/pdf',
+  });
+  return getSignedUrl(getS3Client(), command, { expiresIn });
 }
 
 export async function deleteObject(key: string) {

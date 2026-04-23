@@ -1621,11 +1621,8 @@ async function exportAndSubmitPdf() {
   downloadBinary(pdf, `${safeName}.pdf`);
 
   try {
-    let binary = '';
-    pdf.forEach((b) => (binary += String.fromCharCode(b)));
-    const base64 = btoa(binary);
     await submitSignedPdf(
-      { templateId: state.remoteTemplateId, templateName: state.templateName || safeName, pdf: base64 },
+      { templateId: state.remoteTemplateId, templateName: state.templateName || safeName, pdf },
       state.authToken,
     );
     pushNotice('Document envoyé avec succès.', 'success');

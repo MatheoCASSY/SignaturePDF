@@ -153,11 +153,28 @@ export function loadRemoteUserDirectory(token: string, templateId?: string) {
   });
 }
 
-export function submitSignedPdf(payload: { templateId: string; templateName: string; pdf: string }, token: string) {
+export async function submitSignedPdf(
+  payload: { templateId: string; templateName: string; pdf: Uint8Array },
+  token: string,
+) {
+  const { uploadUrl, s3Key } = await requestJson<{ uploadUrl: string; s3Key: string }>(
+    '/api/submissions?presign=1',
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    body: payload.pdf.buffer.slice(payload.pdf.byteOffset, payload.pdf.byteOffset + payload.pdf.byteLength) as ArrayBuffer,
+    headers: { 'Content-Type': 'application/pdf' },
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Échec upload S3 (${uploadRes.status})`);
+  }
+
   return requestJson<{ submission: SubmissionRecord }>('/api/submissions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ templateId: payload.templateId, templateName: payload.templateName, s3Key }),
   });
 }
 

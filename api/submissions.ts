@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import {
+  createPresignedPutUrl,
   ensureStorageReady,
   getBucketName,
   getS3Client,
@@ -42,6 +43,8 @@ async function saveIndex(submissions: SubmissionRecord[]) {
   await writeJsonObject(submissionIndexKey(), { submissions: sorted });
 }
 
+const S3_KEY_RE = /^submissions\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.pdf$/;
+
 export default async function handler(req: any, res: any) {
   try {
     ensureStorageReady();
@@ -58,30 +61,40 @@ export default async function handler(req: any, res: any) {
       const templateId = String(body.templateId || '').trim();
       const templateName = String(body.templateName || 'Document').trim();
       const pdfBase64 = String(body.pdf || '').trim();
+      const s3Key = String(body.s3Key || '').trim();
 
-      if (!templateId || !pdfBase64) {
-        json(res, 400, { error: 'templateId et pdf requis' });
+      if (!templateId || (!pdfBase64 && !s3Key)) {
+        json(res, 400, { error: 'templateId et (pdf ou s3Key) requis' });
         return;
       }
 
-      if (pdfBase64.length > 6_000_000) {
-        json(res, 413, { error: 'PDF trop volumineux (max ~4 Mo)' });
-        return;
+      let id: string;
+
+      if (s3Key) {
+        if (!S3_KEY_RE.test(s3Key)) {
+          json(res, 400, { error: 's3Key invalide' });
+          return;
+        }
+        id = s3Key.slice('submissions/'.length, -'.pdf'.length);
+      } else {
+        if (pdfBase64.length > 6_000_000) {
+          json(res, 413, { error: 'PDF trop volumineux (max ~4 Mo)' });
+          return;
+        }
+        id = randomUUID();
+        await getS3Client().send(
+          new PutObjectCommand({
+            Bucket: getBucketName(),
+            Key: submissionObjectKey(id),
+            Body: Buffer.from(pdfBase64, 'base64'),
+            ContentType: 'application/pdf',
+          }),
+        );
       }
 
-      const id = randomUUID();
       const now = new Date().toISOString();
-      const safeName = templateName.replace(/[^a-zA-Z0-9\u00C0-\u024F\-_ ]/g, '_').slice(0, 60).trim();
+      const safeName = templateName.replace(/[^a-zA-Z0-9À-ɏ\-_ ]/g, '_').slice(0, 60).trim();
       const filename = `${safeName || 'document'}_${now.slice(0, 10)}.pdf`;
-
-      await getS3Client().send(
-        new PutObjectCommand({
-          Bucket: getBucketName(),
-          Key: submissionObjectKey(id),
-          Body: Buffer.from(pdfBase64, 'base64'),
-          ContentType: 'application/pdf',
-        }),
-      );
 
       const record: SubmissionRecord = {
         id,
@@ -100,6 +113,20 @@ export default async function handler(req: any, res: any) {
     }
 
     if (req.method === 'GET') {
+      const presign = url.searchParams.get('presign');
+
+      if (presign === '1') {
+        if (!principal) {
+          json(res, 401, { error: 'Authentification requise' });
+          return;
+        }
+        const id = randomUUID();
+        const s3Key = submissionObjectKey(id);
+        const uploadUrl = await createPresignedPutUrl(s3Key);
+        json(res, 200, { uploadUrl, s3Key });
+        return;
+      }
+
       if (!principal?.isAdmin) {
         json(res, 401, { error: 'Accès admin requis' });
         return;
