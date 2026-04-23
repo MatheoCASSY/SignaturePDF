@@ -1,4 +1,5 @@
 import { checkTemplate, cloneDeep, getDefaultFont, getInputFromTemplate, type Template } from '@pdfme/common';
+import { generate as pdfGenerate } from '@pdfme/generator';
 import { DESIGNER_OPTIONS, FORM_OPTIONS, uiPlugins } from './config/ui';
 import { sampleTemplates } from './data/templates';
 import { appendFieldFromDesigner } from './core/fields';
@@ -112,10 +113,7 @@ let activeUi: DesignerLike | FormLike | null = null;
 let activeUiKind: RouteName | null = null;
 let mountRequestId = 0;
 let uiModulePromise: Promise<{ Designer: new (...args: any[]) => unknown; Form: new (...args: any[]) => unknown }> | null = null;
-let generatorModulePromise: Promise<{ generate: (...args: any[]) => Promise<any> }> | null = null;
-
 const PDFME_UI_CDN_URL = 'https://esm.sh/@pdfme/ui@6.0.6?bundle';
-const PDFME_GENERATOR_CDN_URL = 'https://esm.sh/@pdfme/generator@6.0.6?bundle';
 
 const authView: AuthViewState = {
   isLoading: true,
@@ -135,14 +133,6 @@ function loadUiModule() {
   return uiModulePromise;
 }
 
-function loadGeneratorModule() {
-  if (!generatorModulePromise) {
-    generatorModulePromise = import(/* @vite-ignore */ PDFME_GENERATOR_CDN_URL).then((module) => ({
-      generate: module.generate,
-    }));
-  }
-  return generatorModulePromise;
-}
 
 function stripAllFontRefs(template: Template): Template {
   const schemas = template.schemas.map((page) =>
@@ -185,9 +175,9 @@ async function prefetchFonts(
 }
 
 async function generatePdf(
-  generate: (...args: any[]) => Promise<Uint8Array>,
   args: { template: Template; inputs: Record<string, string>[]; options: Record<string, unknown>; plugins: typeof uiPlugins }
 ): Promise<Uint8Array> {
+  const generate = pdfGenerate as unknown as (...args: any[]) => Promise<Uint8Array>;
   // Pré-charger les polices HTTP et écarter celles qui échouent
   const { font: fetchedFont, failed } = await prefetchFonts(args.template.font ?? {});
   let template: Template = { ...args.template, font: fetchedFont };
@@ -1565,11 +1555,9 @@ function syncDocumentModal() {
 async function exportPdf(fillable: boolean) {
   const template = currentTemplate();
   const inputs = currentInputs(template);
-  const { generate } = await loadGeneratorModule();
-
   const pdf = fillable
     ? await generateFillablePdf(template, inputs, uiPlugins as unknown as Record<string, unknown>)
-    : await generatePdf(generate, { template, inputs, options: { title: 'pdfme-studio' }, plugins: uiPlugins });
+    : await generatePdf({ template, inputs, options: { title: 'pdfme-studio' }, plugins: uiPlugins });
 
   downloadBinary(pdf, fillable ? 'pdf-interactif.pdf' : 'pdf-rempli.pdf');
   pushNotice(fillable ? 'PDF interactif exporte.' : 'PDF final exporte.', 'success');
@@ -1617,9 +1605,8 @@ async function exportAndSubmitPdf() {
   try {
     const template = currentTemplate();
     const inputs = currentInputs(template);
-    const { generate } = await loadGeneratorModule();
     setStatus('Génération du PDF...');
-    pdf = await generatePdf(generate, {
+    pdf = await generatePdf({
       template,
       inputs,
       options: { title: state.templateName || 'document-signe' },
@@ -1707,8 +1694,7 @@ async function deleteSubmission(id: string) {
 async function previewPdf() {
   const template = currentTemplate();
   const inputs = currentInputs(template);
-  const { generate } = await loadGeneratorModule();
-  const pdf = await generatePdf(generate, {
+  const pdf = await generatePdf({
     template,
     inputs,
     options: { title: 'pdfme-studio-preview' },

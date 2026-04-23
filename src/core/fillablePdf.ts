@@ -8,17 +8,7 @@ import {
 import { convertForPdfLayoutProps, hex2PrintingColor } from '@pdfme/schemas/utils';
 import { PDFDict, PDFDocument as PdfLibDocument, PDFFont, PDFName, TextAlignment } from '@pdfme/pdf-lib';
 
-let generatorModulePromise: Promise<{ generate: (...args: any[]) => Promise<any> }> | null = null;
-const PDFME_GENERATOR_CDN_URL = 'https://esm.sh/@pdfme/generator@6.0.6?bundle';
-
-function loadGeneratorModule() {
-  if (!generatorModulePromise) {
-    generatorModulePromise = import(/* @vite-ignore */ PDFME_GENERATOR_CDN_URL).then((module) => ({
-      generate: module.generate,
-    }));
-  }
-  return generatorModulePromise;
-}
+import { generate } from '@pdfme/generator';
 
 function normalizeInputs(inputs?: Record<string, string>[]) {
   return inputs && inputs.length > 0 ? inputs : [{}];
@@ -259,7 +249,6 @@ export async function generateFillablePdf(
   inputs: Record<string, string>[],
   plugins: Record<string, unknown>,
 ) {
-  const { generate } = await loadGeneratorModule();
   const acroTemplate = toAcroFormTemplate(template);
   return generate({
     template: acroTemplate,
